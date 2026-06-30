@@ -1,0 +1,146 @@
+{
+  "kind": "public_review_package",
+  "project": "AI-PMS",
+  "generated_at": "2026-06-30T00:20:25Z",
+  "public_urls": {
+    "run_hub": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/run/",
+    "web_console": "https://textiles-zen-syndrome-ultimately.trycloudflare.com",
+    "handoff_page": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/handoff/",
+    "review_package_json": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/handoff/public-review-package.json",
+    "review_response_template": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/handoff/review-response-template.md",
+    "apk_download_page": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/downloads/",
+    "apk_file": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/downloads/AI-PMS-Recorder.apk",
+    "apk_build_file": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/downloads/AiPmsAndroidClient-responsive-public-debug.apk",
+    "apk_install_guide": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/downloads/install.html",
+    "requirements_docx": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/requirements/AI-PMS-requirements-v0.2.docx",
+    "requirements_markdown": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/requirements/AI-PMS-requirements-v0.2.md",
+    "requirements_manifest": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/requirements/requirements.json",
+    "platform_docs": "https://other-musicians-recorded-different.trycloudflare.com/docs",
+    "collection_docs": "https://warrior-copyright-opinion-saturn.trycloudflare.com/docs",
+    "analysis_docs": "https://monday-cables-optional-cancer.trycloudflare.com/docs"
+  },
+  "android_apk": {
+    "app_name": "AI-PMS Recorder",
+    "package_name": "com.aipms",
+    "download_url": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/downloads/AI-PMS-Recorder.apk",
+    "build_file_download_url": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/downloads/AiPmsAndroidClient-responsive-public-debug.apk",
+    "metadata_url": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/downloads/android-apk.json",
+    "install_guide_url": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/downloads/install.html",
+    "file_name": "AiPmsAndroidClient-responsive-public-debug.apk",
+    "alias_file_name": "AI-PMS-Recorder.apk",
+    "sha256": "ba5f4976ba1a3db3eb3c99db4ebce53ffd5efeff0b7b57ba3d888d29b5184dce",
+    "size_bytes": 2905140,
+    "layout": "responsive_phone_tablet",
+    "signing": "debug_v2"
+  },
+  "requirements": {
+    "title": "AI-PMS 기반 회의·업무·지식 통합관리 플랫폼 요구사항 정의서",
+    "version": "v0.2",
+    "docx_url": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/requirements/AI-PMS-requirements-v0.2.docx",
+    "markdown_url": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/requirements/AI-PMS-requirements-v0.2.md",
+    "manifest_url": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/requirements/requirements.json",
+    "docx_sha256": "bdfcc842eb898a61cfaccec1a30e5df0501b4082fa12f236ff23f03d96aa994d",
+    "markdown_sha256": "90b5d5606d976081fd6f9618fa005857322672c6ba1113164eab04024bff66cf",
+    "scope_controls": [
+      "recording-first Android app",
+      "project-only selection before upload",
+      "project-member automatic distribution",
+      "no mandatory attendee selection",
+      "no speaker mapping",
+      "no AI auto-confirmation"
+    ]
+  },
+  "response_template": {
+    "url": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/handoff/review-response-template.md",
+    "required_result_values": [
+      "승인 가능",
+      "수정 필요",
+      "질문",
+      "미검증"
+    ],
+    "required_sections": [
+      "검토 결과",
+      "확인 항목",
+      "수정 요청",
+      "질문",
+      "미검증 항목"
+    ]
+  },
+  "response_collection": {
+    "command": "bash scripts/collect_public_review_responses.sh",
+    "inbox_dir": "runtime/review_responses/inbox",
+    "summary_json": "runtime/review_responses/latest_summary.json",
+    "summary_markdown": "runtime/review_responses/latest_summary.md"
+  },
+  "review_scopes": [
+    {
+      "owner": "김희섭",
+      "scope": "Android, Web, Mac mini Analysis, external access",
+      "check_items": [
+        "Android phone/tablet responsive layout and installation",
+        "recording, automatic project-member distribution target, upload, and job status flow",
+        "Web review, approval, distribution, risk/resource/operations visualization",
+        "Mac mini worker STT/LLM completion and JSON validation",
+        "temporary public tunnel and APK download handoff"
+      ]
+    },
+    {
+      "owner": "김강현",
+      "scope": "Collection API",
+      "check_items": [
+        "upload session and audio asset validation",
+        "analysis job create, claim, heartbeat, complete/fail, retry states",
+        "callback payload and signature boundary with Platform API",
+        "Android and worker API contract compatibility"
+      ]
+    },
+    {
+      "owner": "박주연",
+      "scope": "Platform API",
+      "check_items": [
+        "employee-number auth, account state, and admin user management",
+        "project, meeting, minutes review, approval, distribution workflow",
+        "PMS reflection into tasks, decisions, resources, costs, risks, knowledge",
+        "email delivery, ERP handoff, retry queue, and audit boundaries"
+      ]
+    }
+  ],
+  "verification": {
+    "refresh_command": "bash scripts/refresh_public_handoff_bundle.sh",
+    "refresh_with_apk_rebuild": "AIPMS_REFRESH_BUILD_APK=1 bash scripts/refresh_public_handoff_bundle.sh",
+    "publish_order": [
+      "bash scripts/run_public_tunnels.sh",
+      "bash scripts/print_public_urls.sh",
+      "bash scripts/build_android_public_debug.sh",
+      "bash scripts/publish_android_apk_download.sh",
+      "bash scripts/publish_public_review_package.sh",
+      "bash scripts/publish_public_execution_hub.sh",
+      "bash scripts/smoke_public_access.sh"
+    ],
+    "smoke_expected": {
+      "web": 200,
+      "run": 200,
+      "run_static": 200,
+      "run_json": 200,
+      "downloads": 200,
+      "install_guide": 200,
+      "handoff": 200,
+      "review_package": 200,
+      "response_template": 200,
+      "requirements_manifest": 200,
+      "requirements_markdown": 200,
+      "requirements_docx": 200,
+      "apk": 200,
+      "apk_alias": 200,
+      "platform": 200,
+      "collection": 200,
+      "analysis": 200,
+      "cors": 200
+    }
+  },
+  "known_limits": [
+    "Cloudflare quick tunnel URLs can change when the Mac mini or tunnel session restarts.",
+    "The current public APK is debug signed; use release signing before long-term external distribution.",
+    "Reviewer feedback should be reconciled into requirements, screen/API mapping, and backlog documents."
+  ]
+}

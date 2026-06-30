@@ -1,0 +1,73 @@
+{
+  "version": "status.v1",
+  "meeting": {
+    "normal": [
+      "created",
+      "upload_requested",
+      "uploaded",
+      "analysis_queued",
+      "analyzing",
+      "review_required",
+      "approved",
+      "distributed"
+    ],
+    "exception": [
+      "upload_failed",
+      "analysis_failed",
+      "review_rejected",
+      "distribution_failed"
+    ]
+  },
+  "analysis_job": {
+    "normal": [
+      "queued",
+      "claimed",
+      "running",
+      "completed"
+    ],
+    "exception": [
+      "failed",
+      "retry_wait",
+      "cancelled"
+    ],
+    "lease": [
+      "active",
+      "expired",
+      "released"
+    ]
+  },
+  "minutes": {
+    "normal": [
+      "draft",
+      "review_required",
+      "approved"
+    ],
+    "exception": [
+      "rejected",
+      "superseded"
+    ]
+  },
+  "distribution": {
+    "normal": [
+      "ready",
+      "queued",
+      "sending",
+      "sent"
+    ],
+    "exception": [
+      "partial_failed",
+      "failed",
+      "retry_wait"
+    ]
+  },
+  "account": {
+    "normal": [
+      "password_change_required",
+      "active"
+    ],
+    "exception": [
+      "locked",
+      "disabled"
+    ]
+  }
+}

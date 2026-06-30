@@ -1,0 +1,261 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.ai-pms/contracts/analysis_result.schema.json",
+  "title": "AI-PMS Meeting Analysis Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "language",
+    "summary",
+    "transcript_segments",
+    "decisions",
+    "action_items",
+    "risks",
+    "required_resources",
+    "requires_human_approval"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "analysis.v1"
+    },
+    "language": {
+      "type": "string",
+      "default": "ko"
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "transcript_segments": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/transcript_segment"
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/decision"
+      }
+    },
+    "action_items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/action_item"
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/risk"
+      }
+    },
+    "required_resources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/required_resource"
+      }
+    },
+    "requires_human_approval": {
+      "const": true
+    }
+  },
+  "$defs": {
+    "evidence_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "segment_id": {
+          "type": ["string", "null"]
+        },
+        "speaker": {
+          "type": ["string", "null"],
+          "description": "Only explicit source labels are allowed. Do not infer speaker identity."
+        },
+        "start_ms": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "end_ms": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "quote": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "transcript_segment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["segment_id", "text"],
+      "properties": {
+        "segment_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "speaker": {
+          "type": ["string", "null"],
+          "description": "Only explicit source labels are allowed. Do not infer speaker identity."
+        },
+        "start_ms": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "end_ms": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["content"],
+      "properties": {
+        "content": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "type": ["string", "null"]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence_ref"
+          }
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "action_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title"],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "assignee": {
+          "type": ["string", "null"],
+          "description": "Only explicit assignee labels are allowed. Do not infer responsibility from phrasing."
+        },
+        "due_date": {
+          "type": ["string", "null"],
+          "format": "date"
+        },
+        "target_module": {
+          "const": "task"
+        },
+        "evidence": {
+          "type": ["string", "null"]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence_ref"
+          }
+        },
+        "priority": {
+          "enum": ["low", "medium", "high"]
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "task_conversion_policy": {
+          "const": "manual_review_required"
+        },
+        "task_conversion_status": {
+          "enum": ["candidate", "converted", "rejected"]
+        },
+        "task_conversion_reason": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "risk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title"],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "level": {
+          "enum": ["low", "medium", "high"]
+        },
+        "evidence": {
+          "type": ["string", "null"]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence_ref"
+          }
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "required_resource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "resource_type"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resource_type": {
+          "enum": ["human", "equipment", "room", "vehicle", "software", "other"]
+        },
+        "quantity": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0
+        },
+        "needed_from": {
+          "type": ["string", "null"],
+          "format": "date"
+        },
+        "needed_to": {
+          "type": ["string", "null"],
+          "format": "date"
+        },
+        "reason": {
+          "type": ["string", "null"]
+        },
+        "evidence": {
+          "type": ["string", "null"]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence_ref"
+          }
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    }
+  }
+}

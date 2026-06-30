@@ -1,0 +1,103 @@
+{
+  "kind": "public_execution_hub",
+  "project": "AI-PMS",
+  "generated_at": "2026-06-30T00:20:25Z",
+  "public_urls": {
+    "run_hub": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/run/",
+    "web_console": "https://textiles-zen-syndrome-ultimately.trycloudflare.com",
+    "apk_download_page": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/downloads/",
+    "apk_file": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/downloads/AI-PMS-Recorder.apk",
+    "apk_build_file": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/downloads/AiPmsAndroidClient-responsive-public-debug.apk",
+    "apk_install_guide": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/downloads/install.html",
+    "handoff_page": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/handoff/",
+    "review_package_json": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/handoff/public-review-package.json",
+    "requirements_docx": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/requirements/AI-PMS-requirements-v0.2.docx",
+    "requirements_markdown": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/requirements/AI-PMS-requirements-v0.2.md",
+    "requirements_manifest": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/requirements/requirements.json",
+    "platform_health": "https://other-musicians-recorded-different.trycloudflare.com/health",
+    "platform_docs": "https://other-musicians-recorded-different.trycloudflare.com/docs",
+    "collection_health": "https://warrior-copyright-opinion-saturn.trycloudflare.com/health",
+    "collection_docs": "https://warrior-copyright-opinion-saturn.trycloudflare.com/docs",
+    "analysis_health": "https://monday-cables-optional-cancer.trycloudflare.com/health",
+    "analysis_docs": "https://monday-cables-optional-cancer.trycloudflare.com/docs"
+  },
+  "local_urls": {
+    "web_client": "http://127.0.0.1:3000",
+    "platform_api": "http://127.0.0.1:8000",
+    "collection_api": "http://127.0.0.1:8200",
+    "analysis_server": "http://127.0.0.1:8100"
+  },
+  "android_apk": {
+    "app_name": "AI-PMS Recorder",
+    "package_name": "com.aipms",
+    "file_name": "AiPmsAndroidClient-responsive-public-debug.apk",
+    "alias_file_name": "AI-PMS-Recorder.apk",
+    "sha256": "ba5f4976ba1a3db3eb3c99db4ebce53ffd5efeff0b7b57ba3d888d29b5184dce",
+    "size_bytes": 2905140,
+    "size_mb": "2.8",
+    "layout": "responsive_phone_tablet",
+    "signing": "debug_v2",
+    "published_at": "2026-06-29T23:57:11Z"
+  },
+  "requirements": {
+    "title": "AI-PMS 기반 회의·업무·지식 통합관리 플랫폼 요구사항 정의서",
+    "version": "v0.2",
+    "docx_file_name": "AI-PMS-requirements-v0.2.docx",
+    "markdown_file_name": "AI-PMS-requirements-v0.2.md",
+    "docx_sha256": "bdfcc842eb898a61cfaccec1a30e5df0501b4082fa12f236ff23f03d96aa994d",
+    "markdown_sha256": "90b5d5606d976081fd6f9618fa005857322672c6ba1113164eab04024bff66cf",
+    "scope_controls": [
+      "recording-first Android app",
+      "project-only selection before upload",
+      "project-member automatic distribution",
+      "no mandatory attendee selection",
+      "no speaker mapping",
+      "no AI auto-confirmation"
+    ],
+    "published_at": "2026-06-30T00:20:25Z"
+  },
+  "execution_commands": [
+    {
+      "name": "local_base_services",
+      "label": "로컬 API 서버",
+      "commands": [
+        "bash scripts/run_postgres.sh",
+        "bash scripts/run_collection_api.sh",
+        "bash scripts/run_analysis_server.sh",
+        "bash scripts/run_analysis_worker_loop.sh",
+        "bash scripts/run_platform_backend.sh"
+      ]
+    },
+    {
+      "name": "local_web",
+      "label": "로컬 React Web",
+      "commands": [
+        "cd web_client",
+        "VITE_API_BASE=http://127.0.0.1:8000 npm run dev -- --host 0.0.0.0 --port 3000"
+      ]
+    },
+    {
+      "name": "public_access",
+      "label": "외부 접속 공개",
+      "commands": [
+        "bash scripts/run_public_tunnels.sh",
+        "AIPMS_REFRESH_BUILD_APK=1 bash scripts/refresh_public_handoff_bundle.sh"
+      ]
+    },
+    {
+      "name": "android_apk",
+      "label": "Android APK",
+      "commands": [
+        "bash scripts/build_android_public_debug.sh",
+        "bash scripts/install_android_public_debug_apk.sh"
+      ]
+    }
+  ],
+  "minimum_checks": [
+    "Web console loads from the public URL.",
+    "APK download URL returns a file larger than 1 MB.",
+    "Phone-width Android device shows single-column layout.",
+    "Tablet-width Android device shows two-column layout.",
+    "Platform, Collection, and Analysis health endpoints return 200."
+  ]
+}

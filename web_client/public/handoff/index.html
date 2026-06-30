@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI-PMS 파트별 확인 초안</title>
+    <style>
+      :root {
+        color: #0b1720;
+        background: #f3f7fb;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+      }
+      header {
+        background: linear-gradient(135deg, #071827 0%, #0d2b45 58%, #0f5e72 100%);
+        color: #ffffff;
+        padding: 28px 18px;
+      }
+      .header-inner,
+      main {
+        margin: 0 auto;
+        max-width: 1120px;
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      h1 {
+        font-size: clamp(26px, 4vw, 42px);
+        line-height: 1.15;
+      }
+      header p {
+        color: #b6d6e7;
+        line-height: 1.55;
+        margin-top: 10px;
+        max-width: 780px;
+      }
+      main {
+        display: grid;
+        gap: 18px;
+        padding: 22px 18px 36px;
+      }
+      section,
+      article {
+        background: #ffffff;
+        border: 1px solid #d9e3ec;
+        border-radius: 8px;
+        padding: 18px;
+      }
+      .grid {
+        display: grid;
+        gap: 14px;
+      }
+      .cols-3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .cols-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      h2 {
+        font-size: 20px;
+        margin-bottom: 12px;
+      }
+      h3 {
+        font-size: 15px;
+        margin-bottom: 8px;
+      }
+      p,
+      li,
+      td,
+      th,
+      dd,
+      dt {
+        color: #405465;
+        font-size: 14px;
+        line-height: 1.55;
+      }
+      ul,
+      ol {
+        margin: 8px 0 0;
+        padding-left: 20px;
+      }
+      .flow {
+        display: grid;
+        gap: 8px;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+      }
+      .step {
+        background: #eef7fa;
+        border: 1px solid #caeaf2;
+        border-radius: 8px;
+        color: #0a4960;
+        font-size: 13px;
+        font-weight: 700;
+        min-height: 70px;
+        padding: 12px;
+      }
+      .pill {
+        background: #e7f4ed;
+        border-radius: 999px;
+        color: #146444;
+        display: inline-flex;
+        font-size: 12px;
+        font-weight: 700;
+        margin-bottom: 8px;
+        padding: 4px 9px;
+      }
+      .warning {
+        background: #fff8e8;
+        border-color: #f1d18a;
+      }
+      .warning strong {
+        color: #805700;
+      }
+      .links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      a {
+        color: #1769ff;
+        font-weight: 700;
+      }
+      a.button {
+        align-items: center;
+        background: #1769ff;
+        border-radius: 8px;
+        color: #ffffff;
+        display: inline-flex;
+        min-height: 38px;
+        padding: 0 13px;
+        text-decoration: none;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+      }
+      th,
+      td {
+        border-bottom: 1px solid #e4e9ed;
+        padding: 10px 8px;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        color: #66737f;
+        font-size: 13px;
+      }
+      dl {
+        display: grid;
+        gap: 8px 12px;
+        grid-template-columns: 120px 1fr;
+        margin: 0;
+      }
+      dt {
+        color: #66737f;
+      }
+      dd {
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      @media (max-width: 860px) {
+        .cols-3,
+        .cols-2,
+        .flow {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="header-inner">
+        <h1>AI-PMS 파트별 확인 초안</h1>
+        <p>Project_ID 중심 PMS 흐름, 담당 파트별 검토 항목, 외부 접속 URL, Android APK 제공 정보를 한 화면에서 확인하는 팀 공유용 페이지입니다.</p>
+      </div>
+    </header>
+    <main>
+      <section class="warning">
+        <strong>공유 기준</strong>
+        <p>현재 URL은 Cloudflare quick tunnel 기반 임시 주소입니다. Mac mini 또는 터널 세션이 재시작되면 주소가 바뀔 수 있습니다.</p>
+      </section>
+
+      <section>
+        <h2>전체 처리 흐름</h2>
+        <div class="flow">
+          <div class="step">Android<br />프로젝트 선택, 녹음, 업로드</div>
+          <div class="step">Collection API<br />upload session, asset, job queue</div>
+          <div class="step">Mac mini Worker<br />STT, LLM, JSON 검증</div>
+          <div class="step">Platform API<br />검토, 승인, PMS 반영</div>
+          <div class="step">React Web<br />시각화, 배포, 운영 복구</div>
+        </div>
+      </section>
+
+      <section>
+        <h2>외부 접속</h2>
+        <div class="links">
+          <a class="button" href="https://textiles-zen-syndrome-ultimately.trycloudflare.com/run/">실행 허브</a>
+          <a class="button" href="https://textiles-zen-syndrome-ultimately.trycloudflare.com">Web 콘솔</a>
+          <a class="button" href="https://textiles-zen-syndrome-ultimately.trycloudflare.com/downloads/">APK 다운로드</a>
+          <a class="button" href="../requirements/AI-PMS-requirements-v0.2.docx">요구사항정의서</a>
+          <a class="button" href="./public-review-package.json">검토 패키지 JSON</a>
+          <a class="button" href="./review-response-template.md">회신 템플릿</a>
+          <a class="button" href="https://other-musicians-recorded-different.trycloudflare.com/docs">Platform API</a>
+          <a class="button" href="https://warrior-copyright-opinion-saturn.trycloudflare.com/docs">Collection API</a>
+          <a class="button" href="https://monday-cables-optional-cancer.trycloudflare.com/docs">Analysis Server</a>
+        </div>
+      </section>
+
+      <section class="grid cols-3">
+        <article>
+          <span class="pill">김강현</span>
+          <h3>Collection API 확인</h3>
+          <ul>
+            <li>Android upload session, token, multipart upload 계약</li>
+            <li>worker heartbeat, claim, lease, retry 상태 전이</li>
+            <li>Platform callback signing, replay, backoff</li>
+            <li>파일 검증, checksum, 저장 경로, 실패 케이스</li>
+          </ul>
+        </article>
+        <article>
+          <span class="pill">박주연</span>
+          <h3>Platform API 확인</h3>
+          <ul>
+            <li>auth, admin, project, meeting, approval 권한 경계</li>
+            <li>Project_ID 기준 task, decision, risk, resource, cost 연결</li>
+            <li>Collection callback idempotency와 schema validation</li>
+            <li>email distribution, ERP handoff, audit log</li>
+          </ul>
+        </article>
+        <article>
+          <span class="pill">김희섭</span>
+          <h3>Android/Web/통합 확인</h3>
+          <ul>
+            <li>실기기 login, recording, upload, job status E2E</li>
+            <li>Web review, approval, distribution, operations UX</li>
+            <li>Mac mini audio job claim, STT/LLM 완료 검증</li>
+            <li>임시 터널, APK, 고정 도메인 전환 필요성</li>
+          </ul>
+        </article>
+      </section>
+
+      <section>
+        <h2>APK 정보</h2>
+        <dl>
+          <dt>앱명</dt>
+          <dd>AI-PMS Recorder</dd>
+          <dt>Package</dt>
+          <dd><code>com.aipms</code></dd>
+          <dt>파일</dt>
+          <dd><a href="/downloads/AiPmsAndroidClient-responsive-public-debug.apk">AiPmsAndroidClient-responsive-public-debug.apk</a></dd>
+          <dt>레이아웃</dt>
+          <dd>phone single-column / tablet two-column 반응형</dd>
+          <dt>서명</dt>
+          <dd>debug v2 signing. 장기 배포 전 release signing 필요</dd>
+        </dl>
+      </section>
+
+      <section>
+        <h2>리뷰 회신 형식</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>항목</th>
+              <th>작성 내용</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>담당 파트</td>
+              <td>Collection API / Platform API / Android-Web-통합</td>
+            </tr>
+            <tr>
+              <td>결론</td>
+              <td>승인 가능 / 수정 필요 / 질문</td>
+            </tr>
+            <tr>
+              <td>수정 필요 항목</td>
+              <td>API, 데이터, 예외 흐름, 테스트 누락을 구체적으로 작성</td>
+            </tr>
+            <tr>
+              <td>추가 테스트</td>
+              <td>실기기, callback retry, 승인/배포, 운영 복구 등 보완 검증 작성</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>다음 실행 순서</h2>
+        <ol>
+          <li>각 담당자에게 이 페이지와 `docs/18_part_handoff_drafts.md` 초안 전달</li>
+          <li>Collection API, Platform API 확인 결과 반영</li>
+          <li>Android 실기기 APK 설치 및 E2E 테스트</li>
+          <li>Web 검토/승인/배포 UX 점검</li>
+          <li>고정 Cloudflare Tunnel 또는 별도 도메인 전환</li>
+          <li>release APK signing 준비</li>
+        </ol>
+      </section>
+    </main>
+  </body>
+</html>

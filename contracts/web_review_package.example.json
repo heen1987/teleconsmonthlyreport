@@ -1,0 +1,66 @@
+{
+  "screen_id": "W-004",
+  "meeting": {
+    "meeting_id": "MTG-001",
+    "project_id": "PJT-001",
+    "title": "MVP 범위 검토 회의",
+    "created_by": "kim.heeseop",
+    "status": "review_required",
+    "audio_path": null,
+    "transcript": "분석 JSON Schema를 먼저 작성하기로 했습니다."
+  },
+  "analysis_id": "ANL-001",
+  "analysis_status": "draft",
+  "model_name": "qwen3:4b",
+  "result": {
+    "schema_version": "analysis.v1",
+    "language": "ko",
+    "summary": "분석 JSON Schema를 먼저 작성하기로 했다.",
+    "transcript_segments": [
+      {
+        "segment_id": "seg-001",
+        "speaker": null,
+        "start_ms": null,
+        "end_ms": null,
+        "text": "분석 JSON Schema를 먼저 작성하기로 했습니다."
+      }
+    ],
+    "decisions": [
+      {
+        "content": "분석 JSON Schema를 공통 계약으로 둔다.",
+        "evidence": "분석 JSON Schema를 먼저 작성하기로 했습니다.",
+        "evidence_refs": [],
+        "confidence": 0.8
+      }
+    ],
+    "action_items": [
+      {
+        "title": "analysis.v1 스키마 작성",
+        "assignee": null,
+        "due_date": null,
+        "target_module": "task",
+        "evidence": "분석 JSON Schema를 먼저 작성하기로 했습니다.",
+        "evidence_refs": [],
+        "priority": "high",
+        "confidence": 0.8
+      }
+    ],
+    "risks": [],
+    "required_resources": [],
+    "requires_human_approval": true
+  },
+  "counts": {
+    "transcript_segments": 1,
+    "decisions": 1,
+    "action_items": 1,
+    "risks": 0,
+    "required_resources": 0
+  },
+  "capabilities": {
+    "can_edit": true,
+    "can_approve": true,
+    "can_reject": true,
+    "can_distribute": false
+  },
+  "warnings": []
+}

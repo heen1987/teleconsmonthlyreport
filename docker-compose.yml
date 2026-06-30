@@ -1,0 +1,26 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: ai_pms_db
+    environment:
+      POSTGRES_DB: ai_pms
+      POSTGRES_USER: ai_pms
+      POSTGRES_PASSWORD: ai_pms
+    ports:
+      - "5432:5432"
+    volumes:
+      - ai_pms_pgdata:/var/lib/postgresql/data
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ai_pms_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ai_pms_ollama:/root/.ollama
+    profiles:
+      - ai
+
+volumes:
+  ai_pms_pgdata:
+  ai_pms_ollama:

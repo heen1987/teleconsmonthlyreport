@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI-PMS Recorder 설치 확인</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f3f7fb;
+        color: #0b1720;
+      }
+      main {
+        max-width: 880px;
+        margin: 0 auto;
+        padding: 32px 18px;
+      }
+      header,
+      section {
+        background: #ffffff;
+        border: 1px solid #d9e3ec;
+        border-radius: 8px;
+        padding: 22px;
+      }
+      header {
+        margin-bottom: 14px;
+      }
+      .grid {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      h1,
+      h2,
+      p {
+        margin: 0;
+      }
+      h1 {
+        font-size: 28px;
+        line-height: 1.2;
+      }
+      h2 {
+        font-size: 18px;
+        margin-bottom: 10px;
+      }
+      p,
+      li,
+      dd,
+      dt {
+        color: #405465;
+        font-size: 14px;
+        line-height: 1.55;
+      }
+      p {
+        margin-top: 8px;
+      }
+      ol,
+      ul {
+        margin: 8px 0 0;
+        padding-left: 20px;
+      }
+      a.button {
+        display: inline-block;
+        margin-top: 18px;
+        margin-right: 8px;
+        padding: 12px 16px;
+        border-radius: 8px;
+        background: #1769ff;
+        color: #ffffff;
+        text-decoration: none;
+        font-weight: 700;
+      }
+      a.button.secondary {
+        background: #0f5e72;
+      }
+      dl {
+        display: grid;
+        grid-template-columns: 120px 1fr;
+        gap: 8px 12px;
+        margin: 12px 0 0;
+      }
+      dt {
+        color: #667789;
+      }
+      dd {
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      @media (max-width: 760px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>AI-PMS Recorder 설치 확인</h1>
+        <p>휴대폰과 태블릿에서 같은 APK를 설치한 뒤 녹음, 업로드, 처리상태 확인 흐름을 점검합니다.</p>
+        <a class="button" href="./AI-PMS-Recorder.apk" download>APK 다운로드</a>
+        <a class="button secondary" href="/run/">실행 허브</a>
+        <a class="button secondary" href="./AiPmsAndroidClient-responsive-public-debug.apk" download>개발자용 파일명</a>
+        <a class="button secondary" href="./">다운로드 정보</a>
+      </header>
+
+      <div class="grid">
+        <section>
+          <h2>설치 전 확인</h2>
+          <ol>
+            <li>테스트 기기에서 외부 APK 설치를 허용합니다.</li>
+            <li>기존 <code>com.aipms</code> debug 앱이 있으면 필요 시 삭제합니다.</li>
+            <li>네트워크가 현재 public Platform/Collection API에 접근 가능한지 확인합니다.</li>
+            <li>설치 후 앱 이름이 <code>AI-PMS Recorder</code>로 보이는지 확인합니다.</li>
+          </ol>
+        </section>
+
+        <section>
+          <h2>APK 정보</h2>
+          <dl>
+            <dt>Package</dt>
+            <dd><code>com.aipms</code></dd>
+            <dt>Install file</dt>
+            <dd><code>AI-PMS-Recorder.apk</code></dd>
+            <dt>Layout</dt>
+            <dd>Phone single-column / Tablet two-column</dd>
+            <dt>Size</dt>
+            <dd>2.8 MB</dd>
+            <dt>SHA256</dt>
+            <dd><code>ba5f4976ba1a3db3eb3c99db4ebce53ffd5efeff0b7b57ba3d888d29b5184dce</code></dd>
+          </dl>
+        </section>
+
+        <section>
+          <h2>휴대폰 확인</h2>
+          <ul>
+            <li>세로 화면에서 프로젝트 선택, 자동 배포 대상 확인, 녹음 컨트롤이 한 컬럼 흐름으로 보이는지 확인합니다.</li>
+            <li>긴 프로젝트명과 상태 문구가 버튼이나 카드 밖으로 넘치지 않는지 확인합니다.</li>
+            <li>녹음 시작, 중지, 업로드 버튼이 엄지 조작 범위에서 접근 가능한지 확인합니다.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>태블릿 확인</h2>
+          <ul>
+            <li>600dp 이상 화면에서 프로젝트 선택/자동 배포 대상 영역과 녹음/상태 영역이 두 컬럼으로 나뉘는지 확인합니다.</li>
+            <li>가로/세로 전환 후에도 버튼, 상태, 목록이 겹치지 않는지 확인합니다.</li>
+            <li>회의 상태 확인 영역이 업로드 완료 후에도 안정적으로 유지되는지 확인합니다.</li>
+          </ul>
+        </section>
+      </div>
+
+      <section style="margin-top: 14px">
+        <h2>기능 흐름 확인</h2>
+        <ol>
+          <li>사번으로 로그인하고 필요 시 초기 비밀번호를 변경합니다.</li>
+          <li>프로젝트를 선택하고 프로젝트 구성원이 자동 배포 대상임을 확인합니다.</li>
+          <li>짧은 테스트 음성을 녹음한 뒤 업로드합니다.</li>
+          <li>Collection job이 생성되고 처리상태가 조회되는지 확인합니다.</li>
+          <li>Web 콘솔에서 해당 회의가 검토 대상으로 이어지는지 확인합니다.</li>
+        </ol>
+      </section>
+    </main>
+  </body>
+</html>

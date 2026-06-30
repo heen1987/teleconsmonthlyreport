@@ -1,0 +1,12 @@
+{
+  "app_name": "AI-PMS Recorder",
+  "package_name": "com.aipms",
+  "apk": "AiPmsAndroidClient-responsive-public-debug.apk",
+  "apk_alias": "AI-PMS-Recorder.apk",
+  "sha256": "ba5f4976ba1a3db3eb3c99db4ebce53ffd5efeff0b7b57ba3d888d29b5184dce",
+  "size_bytes": 2905140,
+  "size_mb": "2.8",
+  "published_at": "2026-06-29T23:57:11Z",
+  "layout": "responsive_phone_tablet",
+  "signing": "debug_v2"
+}
