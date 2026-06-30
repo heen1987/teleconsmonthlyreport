@@ -6,6 +6,7 @@ __pycache__/
 .DS_Store
 desktop.ini
 node_modules/
+.node_modules_delete_pending_*/
 dist/
 logs/
 runtime/
@@ -15,6 +16,12 @@ models/
 tmp/
 storage/audio/
 android_client/.gradle/
+android_client/.kotlin/
 android_client/build/
 android_client/app/build/
 android_client/local.properties
+.ai-backups/
+outputs/db_exports/*_full_internal.sql
+outputs/db_exports/*_data_only_internal.sql
+outputs/db_exports/*_shareable_no_token_tables.sql
+outputs/db_exports/*_sql_exports.zip
