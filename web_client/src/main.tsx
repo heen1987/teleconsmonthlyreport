@@ -60,7 +60,7 @@ type PasswordResetRequestResponse = {
 };
 type PasswordResetConfirmResponse = { employee_no: string; status: string; revoked_tokens: number };
 type AuthSession = { accessToken: string; expiresAt: string; user: User };
-type AppView = "home" | "project" | "board" | "meetings" | "knowledge" | "resources" | "review" | "admin";
+type AppView = "visual" | "review" | "admin" | "minutes" | "projects" | "board" | "docs";
 type KnowledgeItemKind = typeof KNOWLEDGE_ITEM_KINDS[number];
 type Project = { project_id: string; name: string; description?: string | null; pm_user_id?: string | null; status: string };
 type ProjectMember = {
@@ -91,36 +91,9 @@ type ProjectDashboard = {
   distribution_failures: number;
   knowledge_items: number;
 };
-type Task = {
-  task_id: string;
-  project_id: string;
-  source_meeting_id?: string | null;
-  source_analysis_id?: string | null;
-  title: string;
-  description?: string | null;
-  assignee?: string | null;
-  due_date?: string | null;
-  priority: string;
-  status: string;
-  conversion_status: string;
-};
-type ResourceDemandItem = {
-  demand_id: string;
-  project_id: string;
-  name: string;
-  resource_type: string;
-  quantity?: number | null;
-  needed_from?: string | null;
-  needed_to?: string | null;
-  reason?: string | null;
-  demand_status: string;
-};
 type ProjectDetail = Project & {
   members: ProjectMember[];
   dashboard: ProjectDashboard;
-  tasks?: Task[];
-  resource_demands?: ResourceDemandItem[];
-  knowledge_items?: ProjectKnowledgeItem[];
 };
 type MeetingStatusItem = {
   meeting_id: string;
@@ -240,7 +213,7 @@ type MeetingAnalysisResult = {
   requires_human_approval: boolean;
 };
 type ReviewPackage = {
-  meeting: { meeting_id: string; project_id: string; title: string; status: string; created_by?: string | null; audio_path?: string | null; transcript?: string | null };
+  meeting: { meeting_id: string; project_id: string; title: string; status: string };
   analysis_id: string;
   analysis_status: string;
   model_name: string;
@@ -456,8 +429,7 @@ function App() {
   const [distributionLogs, setDistributionLogs] = useState<EmailDistribution[]>([]);
   const [editReason, setEditReason] = useState("");
   const [message, setMessage] = useState("");
-  const [activeView, setActiveView] = useState<AppView>("home");
-  const [projectMeetings, setProjectMeetings] = useState<MeetingStatusItem[]>([]);
+  const [activeView, setActiveView] = useState<AppView>("visual");
   const [adminUsers, setAdminUsers] = useState<User[]>([]);
   const [resourceProfiles, setResourceProfiles] = useState<ResourceProfile[]>([]);
   const [resourceAvailability, setResourceAvailability] = useState<ResourceAvailability[]>([]);
@@ -502,47 +474,32 @@ function App() {
 
   async function refresh() {
     if (!auth) return;
-    const [projectsResult, summaryResult, meetingsResult] = await Promise.allSettled([
+    const [projectRows, summary] = await Promise.all([
       api<Project[]>("/projects", undefined, auth.accessToken),
       api<Dashboard>("/dashboard/summary", undefined, auth.accessToken),
-      api<MeetingStatusItem[]>("/meetings?limit=8", undefined, auth.accessToken),
     ]);
-    if (projectsResult.status === "fulfilled") {
-      setProjects(projectsResult.value);
-      if (!selectedProject && projectsResult.value[0]) setSelectedProject(projectsResult.value[0].project_id);
-    }
-    if (summaryResult.status === "fulfilled") setDashboard(summaryResult.value);
-    if (meetingsResult.status === "fulfilled") setRecentMeetings(meetingsResult.value);
+    setProjects(projectRows);
+    setDashboard(summary);
+    if (!selectedProject && projectRows[0]) setSelectedProject(projectRows[0].project_id);
   }
 
   async function loadVisualData() {
     if (!auth) return;
     const today = formatLocalDate(new Date());
-    const [profilesResult, availabilityResult, usageResult, costsResult] = await Promise.allSettled([
+    const [profiles, availability, meetings, usage, costs, queueStatus] = await Promise.all([
       api<ResourceProfile[]>("/resources/profiles?status=active", undefined, auth.accessToken),
       api<ResourceAvailability[]>(`/resources/profiles/availability?starts_on=${today}&ends_on=${today}`, undefined, auth.accessToken),
+      api<MeetingStatusItem[]>("/meetings?limit=8", undefined, auth.accessToken),
       api<ResourceUsage[]>("/resources/usage", undefined, auth.accessToken),
       api<ProjectCostCandidate[]>("/resources/cost-candidates?status=candidate", undefined, auth.accessToken),
+      api<OperationQueueStatus>("/operations/queue-status", undefined, auth.accessToken),
     ]);
-    if (profilesResult.status === "fulfilled") setResourceProfiles(profilesResult.value);
-    if (availabilityResult.status === "fulfilled") setResourceAvailability(availabilityResult.value);
-    if (usageResult.status === "fulfilled") setResourceUsage(usageResult.value);
-    if (costsResult.status === "fulfilled") setCostCandidates(costsResult.value);
-    if (canManageUsers) {
-      api<OperationQueueStatus>("/operations/queue-status", undefined, auth.accessToken)
-        .then(setOperationQueue)
-        .catch(() => setOperationQueue(null));
-    }
-  }
-
-  async function loadProjectMeetings() {
-    if (!auth || !selectedProject) { setProjectMeetings([]); return; }
-    const meetings = await api<MeetingStatusItem[]>(
-      `/meetings?project_id=${encodeURIComponent(selectedProject)}&limit=30`,
-      undefined,
-      auth.accessToken,
-    );
-    setProjectMeetings(meetings);
+    setResourceProfiles(profiles);
+    setResourceAvailability(availability);
+    setRecentMeetings(meetings);
+    setResourceUsage(usage);
+    setCostCandidates(costs);
+    setOperationQueue(queueStatus);
   }
 
   async function loadKnowledgeItems(projectId = selectedProject, itemKind = knowledgeItemKind, searchTerm = knowledgeSearchTerm) {
@@ -871,19 +828,13 @@ function App() {
   }, [authChecked, auth?.accessToken, passwordChangeRequired, activeView, canManageUsers]);
 
   useEffect(() => {
-    if (authChecked && auth && !passwordChangeRequired && activeView === "resources") {
+    if (authChecked && auth && !passwordChangeRequired && activeView === "visual") {
       loadVisualData().catch((error) => setMessage(error.message));
     }
   }, [authChecked, auth?.accessToken, passwordChangeRequired, activeView]);
 
   useEffect(() => {
-    if (authChecked && auth && !passwordChangeRequired && activeView === "meetings" && selectedProject) {
-      loadProjectMeetings().catch((error) => setMessage(error.message));
-    }
-  }, [authChecked, auth?.accessToken, passwordChangeRequired, activeView, selectedProject]);
-
-  useEffect(() => {
-    if (!authChecked || !auth || passwordChangeRequired || !["project", "board", "meetings", "knowledge"].includes(activeView) || !selectedProject) {
+    if (!authChecked || !auth || passwordChangeRequired || activeView !== "visual" || !selectedProject) {
       setSelectedProjectDetail(null);
       return;
     }
@@ -904,7 +855,7 @@ function App() {
   }, [authChecked, auth?.accessToken, passwordChangeRequired, activeView, selectedProject]);
 
   useEffect(() => {
-    if (authChecked && auth && !passwordChangeRequired && activeView === "knowledge" && selectedProject) {
+    if (authChecked && auth && !passwordChangeRequired && activeView === "visual") {
       loadKnowledgeItems().catch((error) => setMessage(error.message));
     }
   }, [authChecked, auth?.accessToken, passwordChangeRequired, activeView, selectedProject, knowledgeItemKind]);
@@ -1034,8 +985,7 @@ function App() {
     setSelectedAdminUserId("");
     setKnowledgeItems([]);
     setKnowledgeItemKind("all");
-    setProjectMeetings([]);
-    setActiveView("home");
+    setActiveView("visual");
     setPasswordChangeRequired(false);
   }
 
@@ -1090,70 +1040,36 @@ function App() {
           <span className="brand-mark">M</span>
           <strong>{PRODUCT_BRAND_NAME}</strong>
         </div>
-
-        <div className="nav-project-selector">
-          <Folder size={13} style={{ flexShrink: 0, opacity: 0.7 }} />
-          <select value={selectedProject} onChange={(e) => setSelectedProject(e.target.value)}>
-            <option value="">프로젝트 선택</option>
-            {projects.map((p) => (
-              <option key={p.project_id} value={p.project_id}>{p.name}</option>
-            ))}
-          </select>
-        </div>
-
         <nav className="meetflow-nav">
-          <button className={activeView === "home" ? "active" : ""} type="button" onClick={() => setActiveView("home")}>
+          <button className={activeView === "visual" ? "active" : ""} type="button" onClick={() => setActiveView("visual")}>
             <LayoutDashboard size={18} />
-            <span>홈 대시보드</span>
+            <span>통합 대시보드</span>
           </button>
-
+          
           <div className="nav-group">
-            <div className="nav-group-label">프로젝트</div>
-            <button className={activeView === "project" ? "active" : ""} type="button" onClick={() => setActiveView("project")}>
+            <div className="nav-group-label">프로젝트 관리</div>
+            <button className={activeView === "projects" ? "active" : ""} type="button" onClick={() => setActiveView("projects")}>
               <Folder size={18} />
-              <span>프로젝트 개요</span>
+              <span>프로젝트 정보</span>
             </button>
             <button className={activeView === "board" ? "active" : ""} type="button" onClick={() => setActiveView("board")}>
               <SquareKanban size={18} />
-              <span>업무 보드</span>
+              <span>업무보드</span>
             </button>
-            <button className={activeView === "meetings" ? "active" : ""} type="button" onClick={() => setActiveView("meetings")}>
-              <Mic size={18} />
-              <span>회의 목록</span>
-            </button>
-            <button className={activeView === "knowledge" ? "active" : ""} type="button" onClick={() => setActiveView("knowledge")}>
-              <BookOpen size={18} />
-              <span>지식 문서</span>
-            </button>
-          </div>
-
-          <div className="nav-group">
-            <div className="nav-group-label">전사 관리</div>
-            <button className={activeView === "resources" ? "active" : ""} type="button" onClick={() => setActiveView("resources")}>
-              <Database size={18} />
-              <span>자원·비용</span>
-            </button>
-            <button className={activeView === "review" ? "active" : ""} type="button" onClick={() => setActiveView("review")}>
+            <button className={activeView === "minutes" ? "active" : ""} type="button" onClick={() => setActiveView("minutes")}>
               <FileCheck2 size={18} />
-              <span>검토·승인</span>
+              <span>회의록 & 문서 승인</span>
             </button>
           </div>
-
+          
           {canManageUsers && (
-            <div className="nav-group">
-              <div className="nav-group-label">시스템</div>
-              <button className={activeView === "admin" ? "active" : ""} type="button" onClick={() => setActiveView("admin")}>
-                <Users size={18} />
-                <span>운영관리</span>
-              </button>
-            </div>
+            <button className={activeView === "admin" ? "active" : ""} type="button" onClick={() => setActiveView("admin")}>
+              <Users size={18} />
+              <span>운영관리 (사용자)</span>
+            </button>
           )}
         </nav>
         <div className="sidebar-spacer" />
-        <div className="sidebar-user-info">
-          <UserRound size={13} />
-          <span>{auth.user.name} · {auth.user.role}</span>
-        </div>
         <a className="sidebar-utility" href={APK_DOWNLOAD_PATH} target="_blank" rel="noreferrer">
           <Download size={17} />
           <span>APK 다운로드</span>
@@ -1169,13 +1085,7 @@ function App() {
             <Search size={16} />
             <span>업무 검색...</span>
           </div>
-          <button className="top-icon" type="button" aria-label="새로고침" onClick={() => {
-            refresh().catch((e) => setMessage(e.message));
-            if (activeView === "admin") loadAdminUsers().catch((e) => setMessage(e.message));
-            if (activeView === "resources") loadVisualData().catch((e) => setMessage(e.message));
-            if (activeView === "meetings") loadProjectMeetings().catch((e) => setMessage(e.message));
-            if (activeView === "knowledge") loadKnowledgeItems().catch((e) => setMessage(e.message));
-          }}>
+          <button className="top-icon" type="button" aria-label="새로고침" onClick={() => refresh().then(() => activeView === "admin" ? loadAdminUsers() : activeView === "visual" ? loadVisualData() : undefined).catch((error) => setMessage(error.message))}>
             <RefreshCw size={18} />
           </button>
           <button className="top-icon" type="button" aria-label="로그아웃" onClick={() => logout().catch((error) => setMessage(error.message))}>
@@ -1189,163 +1099,22 @@ function App() {
         </div>
 
         <div className="meetflow-body">
-      {activeView === "home" ? (
-        <div style={{ padding: "24px" }}>
-          <section className="metrics" style={{ marginBottom: "24px" }}>
-            <Metric icon={<Database size={18} />} label="프로젝트" value={dashboard?.projects ?? 0} />
-            <Metric icon={<ClipboardList size={18} />} label="전체 회의" value={dashboard?.meetings ?? 0} />
-            <Metric icon={<Check size={18} />} label="검토 대기" value={dashboard?.pending_reviews ?? 0} />
-            <Metric icon={<Clock size={18} />} label="기한 초과 업무" value={dashboard?.overdue_tasks ?? 0} />
-            <Metric icon={<AlertTriangle size={18} />} label="오픈 리스크" value={dashboard?.unresolved_risks ?? 0} />
-            <Metric icon={<Users size={18} />} label="자원 요청" value={dashboard?.resource_demands ?? 0} />
-            <Metric icon={<Ban size={18} />} label="자원 충돌" value={dashboard?.resource_conflicts ?? 0} />
-            <Metric icon={<BarChart3 size={18} />} label="비용 후보" value={dashboard?.cost_candidates ?? 0} />
-            <Metric icon={<Mail size={18} />} label="배포 실패" value={dashboard?.distribution_failures ?? 0} />
-            <Metric icon={<Layers size={18} />} label="지식 항목" value={dashboard?.knowledge_items ?? 0} />
-          </section>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
-            <div className="card-panel" style={{ background: "#fff", padding: "20px", borderRadius: "12px", border: "1px solid var(--line)" }}>
-              <h3 style={{ margin: "0 0 14px 0", fontSize: "15px", display: "flex", alignItems: "center", gap: "8px" }}>
-                <Mic size={16} style={{ color: "var(--cyan)" }} /> 최근 회의
-              </h3>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                <thead><tr style={{ borderBottom: "1px solid var(--line)", color: "var(--muted)" }}>
-                  <th style={{ padding: "6px 4px", textAlign: "left", fontWeight: 500 }}>회의명</th>
-                  <th style={{ padding: "6px 4px", textAlign: "left", fontWeight: 500 }}>프로젝트</th>
-                  <th style={{ padding: "6px 4px", textAlign: "left", fontWeight: 500 }}>상태</th>
-                </tr></thead>
-                <tbody>
-                  {recentMeetings.slice(0, 6).map((m) => (
-                    <tr key={m.meeting_id} style={{ borderBottom: "1px solid #f0f4f8", cursor: "pointer" }}
-                      onClick={() => { setMeetingId(m.meeting_id); setActiveView("review"); }}>
-                      <td style={{ padding: "8px 4px", fontWeight: 600, color: "var(--ink)" }}>{m.title}</td>
-                      <td style={{ padding: "8px 4px", color: "var(--muted)" }}>{m.project_name}</td>
-                      <td style={{ padding: "8px 4px" }}>
-                        <span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: "bold",
-                          background: m.status === "review_required" ? "#fee2e2" : m.status === "analysis_complete" ? "#dcfce7" : "#f1f5f9",
-                          color: m.status === "review_required" ? "#ef4444" : m.status === "analysis_complete" ? "#16a34a" : "var(--muted)" }}>
-                          {m.status === "review_required" ? "검토 필요" : m.status === "analysis_complete" ? "분석 완료" : m.status === "processing" ? "분석 중" : m.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                  {recentMeetings.length === 0 && <tr><td colSpan={3} style={{ padding: "30px 0", textAlign: "center", color: "var(--muted)" }}>최근 회의가 없습니다</td></tr>}
-                </tbody>
-              </table>
-            </div>
-            <div className="card-panel" style={{ background: "#fff", padding: "20px", borderRadius: "12px", border: "1px solid var(--line)" }}>
-              <h3 style={{ margin: "0 0 14px 0", fontSize: "15px", display: "flex", alignItems: "center", gap: "8px" }}>
-                <Folder size={16} style={{ color: "var(--cyan)" }} /> 프로젝트 현황
-              </h3>
-              {projects.length === 0 ? (
-                <div style={{ padding: "30px 0", textAlign: "center", color: "var(--muted)" }}>등록된 프로젝트가 없습니다</div>
-              ) : (
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                  <thead><tr style={{ borderBottom: "1px solid var(--line)", color: "var(--muted)" }}>
-                    <th style={{ padding: "6px 4px", textAlign: "left", fontWeight: 500 }}>프로젝트명</th>
-                    <th style={{ padding: "6px 4px", textAlign: "left", fontWeight: 500 }}>상태</th>
-                  </tr></thead>
-                  <tbody>
-                    {projects.map((p) => (
-                      <tr key={p.project_id} style={{ borderBottom: "1px solid #f0f4f8", cursor: "pointer" }}
-                        onClick={() => { setSelectedProject(p.project_id); setActiveView("project"); }}>
-                        <td style={{ padding: "8px 4px", fontWeight: 600, color: "var(--ink)" }}>{p.name}</td>
-                        <td style={{ padding: "8px 4px" }}>
-                          <span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: "bold",
-                            background: p.status === "active" ? "#dcfce7" : "#f1f5f9",
-                            color: p.status === "active" ? "#16a34a" : "var(--muted)" }}>
-                            {p.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : activeView === "project" ? (
-        <ProjectsListConsole
-          projects={projects}
-          selectedProject={selectedProject}
-          selectedProjectDetail={selectedProjectDetail}
-          onProjectChange={setSelectedProject}
-        />
-      ) : activeView === "board" ? (
-        <KanbanBoardConsole
-          selectedProjectDetail={selectedProjectDetail}
-          selectedProject={selectedProject}
-        />
-      ) : activeView === "meetings" ? (
-        <div style={{ padding: "24px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
-            <h2 style={{ margin: 0, fontSize: "18px", display: "flex", alignItems: "center", gap: "8px" }}>
-              <Mic size={20} style={{ color: "var(--cyan)" }} />
-              {activeProject ? `${activeProject.name} — 회의 목록` : "회의 목록"}
-            </h2>
-            <button onClick={() => loadProjectMeetings().catch((e) => setMessage(e.message))} style={{ minHeight: "32px", padding: "0 14px", fontSize: "13px" }}>
-              새로고침
-            </button>
-          </div>
-          {!selectedProject ? (
-            <div className="empty">사이드바에서 프로젝트를 선택하세요.</div>
-          ) : (
-            <div className="card-panel" style={{ background: "#fff", padding: "20px", borderRadius: "12px", border: "1px solid var(--line)" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
-                <thead>
-                  <tr style={{ borderBottom: "2px solid var(--line)", color: "var(--muted)" }}>
-                    <th style={{ padding: "10px 8px", textAlign: "left", fontWeight: 500 }}>회의명</th>
-                    <th style={{ padding: "10px 8px", textAlign: "left", fontWeight: 500 }}>상태</th>
-                    <th style={{ padding: "10px 8px", textAlign: "left", fontWeight: 500 }}>분석 상태</th>
-                    <th style={{ padding: "10px 8px", textAlign: "left", fontWeight: 500 }}>생성일</th>
-                    <th style={{ padding: "10px 8px", textAlign: "left", fontWeight: 500 }}>작업</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {projectMeetings.map((m) => (
-                    <tr key={m.meeting_id} style={{ borderBottom: "1px solid #f0f4f8" }}>
-                      <td style={{ padding: "12px 8px", fontWeight: 600, color: "var(--ink)" }}>{m.title}</td>
-                      <td style={{ padding: "12px 8px" }}>
-                        <span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: "bold",
-                          background: m.status === "review_required" ? "#fee2e2" : m.status === "analysis_complete" ? "#dcfce7" : m.status === "processing" ? "#fef3c7" : "#f1f5f9",
-                          color: m.status === "review_required" ? "#ef4444" : m.status === "analysis_complete" ? "#16a34a" : m.status === "processing" ? "#d97706" : "var(--muted)" }}>
-                          {m.status === "review_required" ? "검토 필요" : m.status === "analysis_complete" ? "분석 완료" : m.status === "processing" ? "분석 중" : m.status === "recording" ? "녹음 중" : m.status === "uploaded" ? "업로드 완료" : m.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: "12px 8px", fontSize: "12px", color: "var(--muted)" }}>
-                        {m.latest_analysis_status ?? "—"}
-                      </td>
-                      <td style={{ padding: "12px 8px", color: "var(--muted)", fontSize: "13px" }}>
-                        {m.created_at.split("T")[0]}
-                      </td>
-                      <td style={{ padding: "12px 8px" }}>
-                        {(m.status === "review_required" || m.status === "analysis_complete") && (
-                          <button style={{ minHeight: "28px", padding: "0 10px", fontSize: "12px", background: "var(--cyan)", color: "#fff" }}
-                            onClick={() => { setMeetingId(m.meeting_id); setActiveView("review"); }}>
-                            검토하기
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                  {projectMeetings.length === 0 && (
-                    <tr><td colSpan={5} style={{ padding: "40px 0", textAlign: "center", color: "var(--muted)" }}>
-                      이 프로젝트에 등록된 회의가 없습니다.
-                    </td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+          {activeView === "visual" && (
+            <section className="metrics">
+              <Metric icon={<Database size={18} />} label="프로젝트" value={dashboard?.projects ?? 0} />
+              <Metric icon={<ClipboardList size={18} />} label="회의" value={dashboard?.meetings ?? 0} />
+              <Metric icon={<Check size={18} />} label="검토 대기" value={dashboard?.pending_reviews ?? 0} />
+              <Metric icon={<Clock size={18} />} label="기한 임박" value={dashboard?.overdue_tasks ?? 0} />
+              <Metric icon={<AlertTriangle size={18} />} label="오픈 리스크" value={dashboard?.unresolved_risks ?? 0} />
+              <Metric icon={<Users size={18} />} label="자원 요청" value={dashboard?.resource_demands ?? 0} />
+              <Metric icon={<Ban size={18} />} label="자원 충돌" value={dashboard?.resource_conflicts ?? 0} />
+              <Metric icon={<BarChart3 size={18} />} label="비용 후보" value={dashboard?.cost_candidates ?? 0} />
+              <Metric icon={<Mail size={18} />} label="배포 실패" value={dashboard?.distribution_failures ?? 0} />
+              <Metric icon={<Layers size={18} />} label="지식 항목" value={dashboard?.knowledge_items ?? 0} />
+            </section>
           )}
-        </div>
-      ) : activeView === "knowledge" ? (
-        <DocumentBoxConsole
-          knowledgeItems={knowledgeItems}
-          selectedProject={selectedProject}
-          onRefreshKnowledge={() => loadKnowledgeItems().catch((e) => setMessage(e.message))}
-        />
-      ) : activeView === "resources" ? (
+
+      {activeView === "visual" ? (
         <VisualConsole
           dashboard={dashboard}
           projects={projects}
@@ -1381,8 +1150,27 @@ function App() {
             setActiveView("review");
           }}
         />
-      ) : activeView === "review" ? (
+      ) : activeView === "projects" ? (
+        <ProjectsListConsole
+          projects={projects}
+          selectedProject={selectedProject}
+          selectedProjectDetail={selectedProjectDetail}
+          onProjectChange={setSelectedProject}
+        />
+      ) : activeView === "board" ? (
+        <KanbanBoardConsole
+          selectedProjectDetail={selectedProjectDetail}
+          selectedProject={selectedProject}
+        />
+      ) : activeView === "docs" ? (
+        <DocumentBoxConsole
+          knowledgeItems={knowledgeItems}
+          selectedProject={selectedProject}
+          onRefreshKnowledge={() => loadKnowledgeItems().catch((error) => setMessage(error.message))}
+        />
+      ) : activeView === "minutes" ? (
         <div style={{ display: "grid", gap: "24px", padding: "20px" }}>
+          {/* (1) 검토·승인 대시보드 */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "20px" }}>
             <div className="card-panel" style={{ background: "#ffffff", padding: "20px", borderRadius: "12px", border: "1px solid var(--line)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
@@ -1395,22 +1183,39 @@ function App() {
               <p style={{ fontSize: "13px", color: "var(--muted)", lineHeight: "1.6", margin: "0 0 16px 0" }}>
                 {review?.result.summary ?? "회의록 검토 패키지를 불러오면 AI 핵심 요약 및 지식 구조 정보가 이곳에 요약됩니다."}
               </p>
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                <span style={{ fontSize: "12px", background: "#eff6ff", color: "#2563eb", padding: "3px 10px", borderRadius: "20px", fontWeight: "bold" }}>결정 {review?.result.decisions.length ?? 0}건</span>
-                <span style={{ fontSize: "12px", background: "#fee2e2", color: "#ef4444", padding: "3px 10px", borderRadius: "20px", fontWeight: "bold" }}>액션 {review?.result.action_items.length ?? 0}건</span>
-                <span style={{ fontSize: "12px", background: "#fffbeb", color: "#d97706", padding: "3px 10px", borderRadius: "20px", fontWeight: "bold" }}>리스크 {review?.result.risks.length ?? 0}건</span>
-                <span style={{ fontSize: "12px", background: "#f3e8ff", color: "#7c3aed", padding: "3px 10px", borderRadius: "20px", fontWeight: "bold" }}>자원 {review?.result.required_resources.length ?? 0}건</span>
+              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                <span style={{ fontSize: "12px", background: "#eff6ff", color: "#2563eb", padding: "4px 10px", borderRadius: "20px", fontWeight: "bold" }}>
+                  결정사항 {review?.result.decisions.length ?? 0}건
+                </span>
+                <span style={{ fontSize: "12px", background: "#fee2e2", color: "#ef4444", padding: "4px 10px", borderRadius: "20px", fontWeight: "bold" }}>
+                  액션아이템 {review?.result.action_items.length ?? 0}건
+                </span>
+                <span style={{ fontSize: "12px", background: "#fffbeb", color: "#d97706", padding: "4px 10px", borderRadius: "20px", fontWeight: "bold" }}>
+                  리스크 {review?.result.risks.length ?? 0}건
+                </span>
+                <span style={{ fontSize: "12px", background: "#f3e8ff", color: "#7c3aed", padding: "4px 10px", borderRadius: "20px", fontWeight: "bold" }}>
+                  자원요청 {review?.result.required_resources.length ?? 0}건
+                </span>
               </div>
             </div>
+
+            {/* 프로젝트 정보 및 최근 승인 내역 */}
             <div className="card-panel" style={{ background: "#ffffff", padding: "20px", borderRadius: "12px", border: "1px solid var(--line)" }}>
               <h3 style={{ margin: "0 0 16px 0", fontSize: "16px", fontWeight: "bold" }}>승인 배포 관리</h3>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
                 <div>
                   <span style={{ fontSize: "12px", color: "var(--muted)" }}>연동 프로젝트</span>
-                  <select value={selectedProject} onChange={(e) => setSelectedProject(e.target.value)}
-                    style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid var(--line)", marginTop: "6px", fontSize: "13px", fontWeight: "bold" }}>
+                  <select
+                    value={selectedProject}
+                    onChange={(event) => setSelectedProject(event.target.value)}
+                    style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid var(--line)", marginTop: "6px", fontSize: "13px", fontWeight: "bold" }}
+                  >
                     <option value="">선택</option>
-                    {projects.map((p) => <option key={p.project_id} value={p.project_id}>{p.name}</option>)}
+                    {projects.map((project) => (
+                      <option key={project.project_id} value={project.project_id}>
+                        {project.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -1424,32 +1229,59 @@ function App() {
             </div>
           </div>
 
+          {/* (2) 검토·승인 리스트 & 작업 툴바 */}
           <div className="card-panel" style={{ background: "#ffffff", padding: "20px", borderRadius: "12px", border: "1px solid var(--line)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
-              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "bold" }}>검토 및 승인</h3>
+              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "bold" }}>검토 및 승인 리스트</h3>
+              
               <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                <input value={meetingId} onChange={(e) => setMeetingId(e.target.value)}
+                <input
+                  value={meetingId}
+                  onChange={(event) => setMeetingId(event.target.value)}
                   placeholder="회의 ID (Meeting ID)"
-                  style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid var(--line)", fontSize: "13px", width: "180px" }} />
-                <button onClick={() => loadReview().catch((e) => setMessage(e.message))} style={{ minHeight: "34px", padding: "0 12px", background: "var(--ink)", color: "#fff", fontSize: "13px" }}>검토 불러오기</button>
-                <button disabled={!review?.capabilities.can_edit || !hasUnsavedEdits} onClick={() => saveEdits().catch((e) => setMessage(e.message))} style={{ minHeight: "34px", padding: "0 12px", fontSize: "13px" }}>저장</button>
-                <button className="secondary" disabled={!hasUnsavedEdits} onClick={resetDraft} style={{ minHeight: "34px", padding: "0 12px", fontSize: "13px" }}>되돌리기</button>
-                <button disabled={!review?.capabilities.can_approve || hasUnsavedEdits} onClick={() => approve().catch((e) => setMessage(e.message))} style={{ minHeight: "34px", padding: "0 12px", background: "#03c75a", color: "#fff", fontSize: "13px" }}>승인</button>
-                <button className="secondary" disabled={!review?.capabilities.can_distribute || hasUnsavedEdits} onClick={() => loadDistributionPreview().catch((e) => setMessage(e.message))} style={{ minHeight: "34px", padding: "0 12px", fontSize: "13px" }}>배포 미리보기</button>
+                  style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid var(--line)", fontSize: "13px", width: "180px" }}
+                />
+                <button onClick={() => loadReview().catch((error) => setMessage(error.message))} style={{ minHeight: "34px", padding: "0 12px", background: "var(--ink)", color: "#ffffff", fontSize: "13px" }}>
+                  검토 불러오기
+                </button>
+                <button disabled={!review?.capabilities.can_edit || !hasUnsavedEdits} onClick={() => saveEdits().catch((error) => setMessage(error.message))} style={{ minHeight: "34px", padding: "0 12px", fontSize: "13px" }}>
+                  저장
+                </button>
+                <button className="secondary" disabled={!hasUnsavedEdits} onClick={resetDraft} style={{ minHeight: "34px", padding: "0 12px", fontSize: "13px" }}>
+                  되돌리기
+                </button>
+                <button disabled={!review?.capabilities.can_approve || hasUnsavedEdits} onClick={() => approve().catch((error) => setMessage(error.message))} style={{ minHeight: "34px", padding: "0 12px", background: "#03c75a", color: "#ffffff", fontSize: "13px" }}>
+                  승인
+                </button>
+                <button className="secondary" disabled={!review?.capabilities.can_distribute || hasUnsavedEdits} onClick={() => loadDistributionPreview().catch((error) => setMessage(error.message))} style={{ minHeight: "34px", padding: "0 12px", fontSize: "13px" }}>
+                  배포 미리보기
+                </button>
               </div>
             </div>
+
             {review && draftResult ? (
-              <ReviewPanel review={review} draft={draftResult} editReason={editReason} onDraftChange={setDraftResult} onEditReasonChange={setEditReason} />
+              <ReviewPanel
+                review={review}
+                draft={draftResult}
+                editReason={editReason}
+                onDraftChange={setDraftResult}
+                onEditReasonChange={setEditReason}
+              />
             ) : (
               <div style={{ padding: "40px", textAlign: "center", color: "var(--muted)", border: "1px dashed var(--line)", borderRadius: "8px" }}>
                 회의 ID를 입력하고 [검토 불러오기]를 눌러 승인 대상 목록을 조회하세요.
               </div>
             )}
+            
             {distributionPreview && (
               <div style={{ marginTop: "20px", borderTop: "1px solid var(--line)", paddingTop: "20px" }}>
-                <DistributionPanel preview={distributionPreview} logs={distributionLogs} onPreviewChange={setDistributionPreview}
-                  onSend={() => distributeMeeting().catch((e) => setMessage(e.message))}
-                  onRefreshLogs={() => loadDistributionLogs(distributionPreview.meeting.meeting_id).catch((e) => setMessage(e.message))} />
+                <DistributionPanel
+                  preview={distributionPreview}
+                  logs={distributionLogs}
+                  onPreviewChange={setDistributionPreview}
+                  onSend={() => distributeMeeting().catch((error) => setMessage(error.message))}
+                  onRefreshLogs={() => loadDistributionLogs(distributionPreview.meeting.meeting_id).catch((error) => setMessage(error.message))}
+                />
               </div>
             )}
             {!distributionPreview && distributionLogs.length > 0 && (
@@ -1459,54 +1291,87 @@ function App() {
             )}
           </div>
 
+          {/* (3) 회의록 상세 & 문서함 (합체 영역) */}
           <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "24px" }}>
-            <div className="card-panel" style={{ background: "#ffffff", padding: "20px", borderRadius: "12px", border: "1px solid var(--line)", display: "flex", flexDirection: "column", minHeight: "400px" }}>
-              <h3 style={{ margin: "0 0 14px 0", fontSize: "16px", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px" }}>
-                <FileText size={18} /> 회의 스크립트 상세
-              </h3>
-              <div style={{ flex: 1, maxHeight: "340px", overflowY: "auto", border: "1px solid var(--line)", borderRadius: "8px", padding: "16px", background: "#f8fafc" }}>
+            {/* 회의록 스크립트 상세 */}
+            <div className="card-panel" style={{ background: "#ffffff", padding: "20px", borderRadius: "12px", border: "1px solid var(--line)", display: "flex", flexDirection: "column", minHeight: "450px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <FileText size={18} /> 회의 스크립트 상세
+                </h3>
+                {review?.meeting.audio_path && (
+                  <span style={{ fontSize: "12px", background: "#f1f5f9", padding: "2px 8px", borderRadius: "4px", color: "var(--muted)" }}>
+                    음성 파일 포함
+                  </span>
+                )}
+              </div>
+              <div style={{ flex: 1, maxHeight: "360px", overflowY: "auto", border: "1px solid var(--line)", borderRadius: "8px", padding: "16px", background: "#f8fafc" }}>
                 {review?.meeting.transcript ? (
-                  <div style={{ whiteSpace: "pre-wrap", lineHeight: "1.6", fontSize: "14px", color: "var(--ink)" }}>{review.meeting.transcript}</div>
+                  <div style={{ whiteSpace: "pre-wrap", lineHeight: "1.6", fontSize: "14px", color: "var(--ink)" }}>
+                    {review.meeting.transcript}
+                  </div>
                 ) : (
-                  <div style={{ textAlign: "center", color: "var(--muted)", padding: "60px 0" }}>회의 ID로 검토를 불러오면 스크립트가 표시됩니다.</div>
+                  <div style={{ textAlign: "center", color: "var(--muted)", padding: "80px 0" }}>
+                    선택된 회의의 스크립트가 없습니다. 회의 ID를 통해 검토를 불러오시면 상세 텍스트 내용이 여기에 표시됩니다.
+                  </div>
                 )}
               </div>
             </div>
-            <div className="card-panel" style={{ background: "#ffffff", padding: "20px", borderRadius: "12px", border: "1px solid var(--line)", minHeight: "400px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+
+            {/* 프로젝트 문서함 */}
+            <div className="card-panel" style={{ background: "#ffffff", padding: "20px", borderRadius: "12px", border: "1px solid var(--line)", minHeight: "450px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
                 <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px" }}>
                   <Layers size={18} /> 프로젝트 지식 문서함
                 </h3>
-                <button className="secondary" onClick={() => loadKnowledgeItems().catch((e) => setMessage(e.message))} style={{ minHeight: "28px", padding: "0 10px", fontSize: "12px" }}>새로고침</button>
+                <button className="secondary" onClick={() => loadKnowledgeItems().catch((error) => setMessage(error.message))} style={{ minHeight: "28px", padding: "0 10px", fontSize: "12px" }}>
+                  조회/새로고침
+                </button>
               </div>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                <thead><tr style={{ borderBottom: "1px solid var(--line)", color: "var(--muted)" }}>
-                  <th style={{ padding: "6px 4px", textAlign: "left", fontWeight: 500 }}>구분</th>
-                  <th style={{ padding: "6px 4px", textAlign: "left", fontWeight: 500 }}>내용</th>
-                  <th style={{ padding: "6px 4px", textAlign: "left", fontWeight: 500 }}>등록일</th>
-                </tr></thead>
-                <tbody>
-                  {knowledgeItems.map((item) => (
-                    <tr key={item.knowledge_id} style={{ borderBottom: "1px solid #f0f4f8" }}>
-                      <td style={{ padding: "7px 4px" }}>
-                        <span style={{ padding: "2px 6px", borderRadius: "4px", fontSize: "10px", fontWeight: "bold",
-                          background: item.item_kind === "action_item" ? "#fee2e2" : item.item_kind === "decision" ? "#dbeafe" : "#fef3c7",
-                          color: item.item_kind === "action_item" ? "#ef4444" : item.item_kind === "decision" ? "#2563eb" : "#d97706" }}>
-                          {item.item_kind === "action_item" ? "액션" : item.item_kind === "decision" ? "의사결정" : item.item_kind}
-                        </span>
-                      </td>
-                      <td style={{ padding: "7px 4px", fontWeight: "bold", color: "var(--ink)" }}>{item.title}</td>
-                      <td style={{ padding: "7px 4px", color: "var(--muted)" }}>{item.created_at.split("T")[0]}</td>
+              
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "2px solid var(--line)", textAlign: "left", color: "var(--muted)" }}>
+                      <th style={{ padding: "8px 4px" }}>구분</th>
+                      <th style={{ padding: "8px 4px" }}>요약</th>
+                      <th style={{ padding: "8px 4px" }}>등록일</th>
                     </tr>
-                  ))}
-                  {knowledgeItems.length === 0 && (
-                    <tr><td colSpan={3} style={{ padding: "30px 0", textAlign: "center", color: "var(--muted)" }}>프로젝트를 선택 후 문서를 조회해 주세요.</td></tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {knowledgeItems.map((item) => (
+                      <tr key={item.knowledge_id} style={{ borderBottom: "1px solid #f0f4f8" }}>
+                        <td style={{ padding: "8px 4px" }}>
+                          <span style={{
+                            padding: "2px 6px",
+                            borderRadius: "4px",
+                            fontSize: "10px",
+                            fontWeight: "bold",
+                            background: item.kind === "action_item" ? "#fee2e2" : item.kind === "decision" ? "#dbeafe" : "#fef3c7",
+                            color: item.kind === "action_item" ? "#ef4444" : item.kind === "decision" ? "#2563eb" : "#d97706"
+                          }}>
+                            {item.kind === "action_item" ? "액션" : item.kind === "decision" ? "의사결정" : "지식"}
+                          </span>
+                        </td>
+                        <td style={{ padding: "8px 4px", fontWeight: "bold", color: "var(--ink)" }}>{item.title}</td>
+                        <td style={{ padding: "8px 4px", color: "var(--muted)" }}>{item.created_at.split("T")[0]}</td>
+                      </tr>
+                    ))}
+                    {knowledgeItems.length === 0 && (
+                      <tr>
+                        <td colSpan={3} style={{ padding: "40px 0", textAlign: "center", color: "var(--muted)" }}>
+                          프로젝트를 선택 후 문서를 조회해 주세요.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
+      ) : activeView === "review" ? (
+        <div className="empty">검토·승인 화면은 회의록 탭과 통합되었습니다. 상단의 [회의록 & 문서 승인] 메뉴를 이용하세요.</div>
       ) : (
         <AdminUsersPanel
           users={adminUsers}
@@ -1526,11 +1391,7 @@ function App() {
         />
       )}
 
-          {message && (
-            <div className="toast-message" onClick={() => setMessage("")} title="클릭하여 닫기">
-              {message}
-            </div>
-          )}
+          {message && <pre className="message">{message}</pre>}
         </div>
       </section>
     </div>
@@ -2203,7 +2064,7 @@ function KanbanBoardConsole(props: {
 
   const getTasksByStatus = (status: string) => {
     if (status === "todo") {
-      return tasks.filter(t => t.status === "draft" || t.status === "created" || t.status === "todo" || !t.status);
+      return tasks.filter(t => t.status === "created" || t.status === "todo" || !t.status);
     }
     return tasks.filter(t => t.status === status);
   };
@@ -2231,11 +2092,11 @@ function KanbanBoardConsole(props: {
                 {colTasks.map((t) => (
                   <div key={t.task_id} style={{ background: "#ffffff", padding: "14px", borderRadius: "8px", boxShadow: "0 2px 6px rgba(0,0,0,0.03)", border: "1px solid var(--line)" }}>
                     <span style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>{t.task_id}</span>
-                    <strong style={{ fontSize: "14px", display: "block", marginBottom: "6px", color: "var(--ink)" }}>{t.title}</strong>
+                    <strong style={{ fontSize: "14px", display: "block", marginBottom: "6px", color: "var(--ink)" }}>{t.name}</strong>
                     <p style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "10px" }}>{t.description}</p>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px" }}>
-                      <span style={{ fontWeight: "700" }}>👤 {t.assignee ?? "미배정"}</span>
-                      <span style={{ color: "var(--rose)", fontSize: "11px", fontWeight: "bold" }}>📅 {t.due_date ?? "—"}</span>
+                      <span style={{ fontWeight: "700" }}>👤 {t.assignee_name}</span>
+                      <span style={{ color: "var(--rose)", fontSize: "11px", fontWeight: "bold" }}>📅 {t.due_date}</span>
                     </div>
                   </div>
                 ))}
@@ -2286,22 +2147,22 @@ function DocumentBoxConsole(props: {
           </thead>
           <tbody>
             {knowledgeItems.map((item) => (
-              <tr key={item.knowledge_id} style={{ borderBottom: "1px solid #f0f4f8" }}>
+              <tr key={item.item_id} style={{ borderBottom: "1px solid #f0f4f8" }}>
                 <td style={{ padding: "12px 4px" }}>
                   <span style={{
                     padding: "2px 8px",
                     borderRadius: "12px",
                     fontSize: "11px",
                     fontWeight: "bold",
-                    background: item.item_kind === "action_item" ? "#fee2e2" : item.item_kind === "decision" ? "#dbeafe" : "#fef3c7",
-                    color: item.item_kind === "action_item" ? "#ef4444" : item.item_kind === "decision" ? "#2563eb" : "#d97706"
+                    background: item.kind === "action_item" ? "#fee2e2" : item.kind === "decision" ? "#dbeafe" : "#fef3c7",
+                    color: item.kind === "action_item" ? "#ef4444" : item.kind === "decision" ? "#2563eb" : "#d97706"
                   }}>
-                    {item.item_kind === "action_item" ? "결정/지시" : item.item_kind === "decision" ? "의결 사항" : item.item_kind === "risk" ? "리스크" : item.item_kind === "required_resource" ? "자원요청" : "지식"}
+                    {item.kind === "action_item" ? "결정/지시" : item.kind === "decision" ? "의결 사항" : "업무 내역"}
                   </span>
                 </td>
-                <td style={{ padding: "12px 4px" }}><strong>{item.title}</strong><div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "2px" }}>{item.content}</div></td>
+                <td style={{ padding: "12px 4px", fontWeight: "bold" }}>{item.summary}</td>
                 <td style={{ padding: "12px 4px", color: "var(--cyan)", fontWeight: "bold" }}>
-                  {item.tags.map((t) => `#${t}`).join(" ")}
+                  {item.keywords.map(kw => `#${kw}`).join(" ")}
                 </td>
                 <td style={{ padding: "12px 4px", color: "var(--muted)" }}>{item.created_at.split("T")[0]}</td>
               </tr>
