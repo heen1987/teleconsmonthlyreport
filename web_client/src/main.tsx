@@ -60,7 +60,7 @@ type PasswordResetRequestResponse = {
 };
 type PasswordResetConfirmResponse = { employee_no: string; status: string; revoked_tokens: number };
 type AuthSession = { accessToken: string; expiresAt: string; user: User };
-type AppView = "visual" | "review" | "admin" | "minutes" | "projects" | "board" | "docs";
+type AppView = "home" | "project" | "board" | "meetings" | "knowledge" | "resources" | "review" | "admin";
 type KnowledgeItemKind = typeof KNOWLEDGE_ITEM_KINDS[number];
 type Project = { project_id: string; name: string; description?: string | null; pm_user_id?: string | null; status: string };
 type ProjectMember = {
@@ -429,7 +429,8 @@ function App() {
   const [distributionLogs, setDistributionLogs] = useState<EmailDistribution[]>([]);
   const [editReason, setEditReason] = useState("");
   const [message, setMessage] = useState("");
-  const [activeView, setActiveView] = useState<AppView>("visual");
+  const [activeView, setActiveView] = useState<AppView>("home");
+  const [projectMeetings, setProjectMeetings] = useState<MeetingStatusItem[]>([]);
   const [adminUsers, setAdminUsers] = useState<User[]>([]);
   const [resourceProfiles, setResourceProfiles] = useState<ResourceProfile[]>([]);
   const [resourceAvailability, setResourceAvailability] = useState<ResourceAvailability[]>([]);
@@ -474,32 +475,47 @@ function App() {
 
   async function refresh() {
     if (!auth) return;
-    const [projectRows, summary] = await Promise.all([
+    const [projectsResult, summaryResult, meetingsResult] = await Promise.allSettled([
       api<Project[]>("/projects", undefined, auth.accessToken),
       api<Dashboard>("/dashboard/summary", undefined, auth.accessToken),
+      api<MeetingStatusItem[]>("/meetings?limit=8", undefined, auth.accessToken),
     ]);
-    setProjects(projectRows);
-    setDashboard(summary);
-    if (!selectedProject && projectRows[0]) setSelectedProject(projectRows[0].project_id);
+    if (projectsResult.status === "fulfilled") {
+      setProjects(projectsResult.value);
+      if (!selectedProject && projectsResult.value[0]) setSelectedProject(projectsResult.value[0].project_id);
+    }
+    if (summaryResult.status === "fulfilled") setDashboard(summaryResult.value);
+    if (meetingsResult.status === "fulfilled") setRecentMeetings(meetingsResult.value);
   }
 
   async function loadVisualData() {
     if (!auth) return;
     const today = formatLocalDate(new Date());
-    const [profiles, availability, meetings, usage, costs, queueStatus] = await Promise.all([
+    const [profilesResult, availabilityResult, usageResult, costsResult] = await Promise.allSettled([
       api<ResourceProfile[]>("/resources/profiles?status=active", undefined, auth.accessToken),
       api<ResourceAvailability[]>(`/resources/profiles/availability?starts_on=${today}&ends_on=${today}`, undefined, auth.accessToken),
-      api<MeetingStatusItem[]>("/meetings?limit=8", undefined, auth.accessToken),
       api<ResourceUsage[]>("/resources/usage", undefined, auth.accessToken),
       api<ProjectCostCandidate[]>("/resources/cost-candidates?status=candidate", undefined, auth.accessToken),
-      api<OperationQueueStatus>("/operations/queue-status", undefined, auth.accessToken),
     ]);
-    setResourceProfiles(profiles);
-    setResourceAvailability(availability);
-    setRecentMeetings(meetings);
-    setResourceUsage(usage);
-    setCostCandidates(costs);
-    setOperationQueue(queueStatus);
+    if (profilesResult.status === "fulfilled") setResourceProfiles(profilesResult.value);
+    if (availabilityResult.status === "fulfilled") setResourceAvailability(availabilityResult.value);
+    if (usageResult.status === "fulfilled") setResourceUsage(usageResult.value);
+    if (costsResult.status === "fulfilled") setCostCandidates(costsResult.value);
+    if (canManageUsers) {
+      api<OperationQueueStatus>("/operations/queue-status", undefined, auth.accessToken)
+        .then(setOperationQueue)
+        .catch(() => setOperationQueue(null));
+    }
+  }
+
+  async function loadProjectMeetings() {
+    if (!auth || !selectedProject) { setProjectMeetings([]); return; }
+    const meetings = await api<MeetingStatusItem[]>(
+      `/meetings?project_id=${encodeURIComponent(selectedProject)}&limit=30`,
+      undefined,
+      auth.accessToken,
+    );
+    setProjectMeetings(meetings);
   }
 
   async function loadKnowledgeItems(projectId = selectedProject, itemKind = knowledgeItemKind, searchTerm = knowledgeSearchTerm) {
@@ -828,13 +844,19 @@ function App() {
   }, [authChecked, auth?.accessToken, passwordChangeRequired, activeView, canManageUsers]);
 
   useEffect(() => {
-    if (authChecked && auth && !passwordChangeRequired && activeView === "visual") {
+    if (authChecked && auth && !passwordChangeRequired && activeView === "resources") {
       loadVisualData().catch((error) => setMessage(error.message));
     }
   }, [authChecked, auth?.accessToken, passwordChangeRequired, activeView]);
 
   useEffect(() => {
-    if (!authChecked || !auth || passwordChangeRequired || activeView !== "visual" || !selectedProject) {
+    if (authChecked && auth && !passwordChangeRequired && activeView === "meetings" && selectedProject) {
+      loadProjectMeetings().catch((error) => setMessage(error.message));
+    }
+  }, [authChecked, auth?.accessToken, passwordChangeRequired, activeView, selectedProject]);
+
+  useEffect(() => {
+    if (!authChecked || !auth || passwordChangeRequired || !["project", "board", "meetings", "knowledge"].includes(activeView) || !selectedProject) {
       setSelectedProjectDetail(null);
       return;
     }
@@ -855,7 +877,7 @@ function App() {
   }, [authChecked, auth?.accessToken, passwordChangeRequired, activeView, selectedProject]);
 
   useEffect(() => {
-    if (authChecked && auth && !passwordChangeRequired && activeView === "visual") {
+    if (authChecked && auth && !passwordChangeRequired && activeView === "knowledge" && selectedProject) {
       loadKnowledgeItems().catch((error) => setMessage(error.message));
     }
   }, [authChecked, auth?.accessToken, passwordChangeRequired, activeView, selectedProject, knowledgeItemKind]);
@@ -985,7 +1007,8 @@ function App() {
     setSelectedAdminUserId("");
     setKnowledgeItems([]);
     setKnowledgeItemKind("all");
-    setActiveView("visual");
+    setProjectMeetings([]);
+    setActiveView("home");
     setPasswordChangeRequired(false);
   }
 
@@ -1058,18 +1081,9 @@ function App() {
             </button>
             <button className={activeView === "minutes" ? "active" : ""} type="button" onClick={() => setActiveView("minutes")}>
               <FileCheck2 size={18} />
-              <span>회의록</span>
-            </button>
-            <button className={activeView === "docs" ? "active" : ""} type="button" onClick={() => setActiveView("docs")}>
-              <FileText size={18} />
-              <span>문서함</span>
+              <span>회의록 & 문서 승인</span>
             </button>
           </div>
-
-          <button className={activeView === "review" ? "active" : ""} type="button" onClick={() => setActiveView("review")}>
-            <ClipboardList size={18} />
-            <span>검토·승인</span>
-          </button>
           
           {canManageUsers && (
             <button className={activeView === "admin" ? "active" : ""} type="button" onClick={() => setActiveView("admin")}>
@@ -1178,49 +1192,94 @@ function App() {
           onRefreshKnowledge={() => loadKnowledgeItems().catch((error) => setMessage(error.message))}
         />
       ) : activeView === "minutes" ? (
-        <section className="workspace">
-          <aside>
-            <h2>Projects</h2>
-            <select value={selectedProject} onChange={(event) => setSelectedProject(event.target.value)}>
-              <option value="">선택</option>
-              {projects.map((project) => (
-                <option key={project.project_id} value={project.project_id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-            {activeProject && (
-              <dl>
-                <dt>Project ID</dt>
-                <dd>{activeProject.project_id}</dd>
-                <dt>Status</dt>
-                <dd>{activeProject.status}</dd>
-              </dl>
-            )}
-          </aside>
+        <div style={{ display: "grid", gap: "24px", padding: "20px" }}>
+          {/* (1) 검토·승인 대시보드 */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "20px" }}>
+            <div className="card-panel" style={{ background: "#ffffff", padding: "20px", borderRadius: "12px", border: "1px solid var(--line)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
+                <Sparkles size={18} style={{ color: "#03c75a" }} />
+                <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "bold" }}>회의 지능화 분석</h3>
+              </div>
+              <strong style={{ fontSize: "18px", color: "var(--ink)", display: "block", marginBottom: "8px" }}>
+                {review?.meeting.title ?? "검토 대기 회의"}
+              </strong>
+              <p style={{ fontSize: "13px", color: "var(--muted)", lineHeight: "1.6", margin: "0 0 16px 0" }}>
+                {review?.result.summary ?? "회의록 검토 패키지를 불러오면 AI 핵심 요약 및 지식 구조 정보가 이곳에 요약됩니다."}
+              </p>
+              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                <span style={{ fontSize: "12px", background: "#eff6ff", color: "#2563eb", padding: "4px 10px", borderRadius: "20px", fontWeight: "bold" }}>
+                  결정사항 {review?.result.decisions.length ?? 0}건
+                </span>
+                <span style={{ fontSize: "12px", background: "#fee2e2", color: "#ef4444", padding: "4px 10px", borderRadius: "20px", fontWeight: "bold" }}>
+                  액션아이템 {review?.result.action_items.length ?? 0}건
+                </span>
+                <span style={{ fontSize: "12px", background: "#fffbeb", color: "#d97706", padding: "4px 10px", borderRadius: "20px", fontWeight: "bold" }}>
+                  리스크 {review?.result.risks.length ?? 0}건
+                </span>
+                <span style={{ fontSize: "12px", background: "#f3e8ff", color: "#7c3aed", padding: "4px 10px", borderRadius: "20px", fontWeight: "bold" }}>
+                  자원요청 {review?.result.required_resources.length ?? 0}건
+                </span>
+              </div>
+            </div>
 
-          <section className="review">
-            <div className="toolbar">
-              <input
-                value={meetingId}
-                onChange={(event) => setMeetingId(event.target.value)}
-                placeholder="Meeting ID"
-              />
-              <button onClick={() => loadReview().catch((error) => setMessage(error.message))}>
-                <ClipboardList size={16} /> 검토 불러오기
-              </button>
-              <button disabled={!review?.capabilities.can_edit || !hasUnsavedEdits} onClick={() => saveEdits().catch((error) => setMessage(error.message))}>
-                <Save size={16} /> 저장
-              </button>
-              <button className="secondary" disabled={!hasUnsavedEdits} onClick={resetDraft}>
-                <RotateCcw size={16} /> 되돌리기
-              </button>
-              <button disabled={!review?.capabilities.can_approve || hasUnsavedEdits} onClick={() => approve().catch((error) => setMessage(error.message))}>
-                <Send size={16} /> 승인
-              </button>
-              <button className="secondary" disabled={!review?.capabilities.can_distribute || hasUnsavedEdits} onClick={() => loadDistributionPreview().catch((error) => setMessage(error.message))}>
-                <Mail size={16} /> 배포 미리보기
-              </button>
+            {/* 프로젝트 정보 및 최근 승인 내역 */}
+            <div className="card-panel" style={{ background: "#ffffff", padding: "20px", borderRadius: "12px", border: "1px solid var(--line)" }}>
+              <h3 style={{ margin: "0 0 16px 0", fontSize: "16px", fontWeight: "bold" }}>승인 배포 관리</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                <div>
+                  <span style={{ fontSize: "12px", color: "var(--muted)" }}>연동 프로젝트</span>
+                  <select
+                    value={selectedProject}
+                    onChange={(event) => setSelectedProject(event.target.value)}
+                    style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid var(--line)", marginTop: "6px", fontSize: "13px", fontWeight: "bold" }}
+                  >
+                    <option value="">선택</option>
+                    {projects.map((project) => (
+                      <option key={project.project_id} value={project.project_id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <span style={{ fontSize: "12px", color: "var(--muted)" }}>자동 배포 대상</span>
+                  <div style={{ marginTop: "8px", fontWeight: "bold", fontSize: "14px", color: "var(--ink)" }}>
+                    {selectedProjectDetail?.members.length ?? 0}명 (구성원 전체)
+                  </div>
+                  <small style={{ color: "var(--muted)", fontSize: "11px", display: "block", marginTop: "2px" }}>수동 선택 없음 · 승인 즉시 메일 자동 배포</small>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* (2) 검토·승인 리스트 & 작업 툴바 */}
+          <div className="card-panel" style={{ background: "#ffffff", padding: "20px", borderRadius: "12px", border: "1px solid var(--line)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
+              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "bold" }}>검토 및 승인 리스트</h3>
+              
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <input
+                  value={meetingId}
+                  onChange={(event) => setMeetingId(event.target.value)}
+                  placeholder="회의 ID (Meeting ID)"
+                  style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid var(--line)", fontSize: "13px", width: "180px" }}
+                />
+                <button onClick={() => loadReview().catch((error) => setMessage(error.message))} style={{ minHeight: "34px", padding: "0 12px", background: "var(--ink)", color: "#ffffff", fontSize: "13px" }}>
+                  검토 불러오기
+                </button>
+                <button disabled={!review?.capabilities.can_edit || !hasUnsavedEdits} onClick={() => saveEdits().catch((error) => setMessage(error.message))} style={{ minHeight: "34px", padding: "0 12px", fontSize: "13px" }}>
+                  저장
+                </button>
+                <button className="secondary" disabled={!hasUnsavedEdits} onClick={resetDraft} style={{ minHeight: "34px", padding: "0 12px", fontSize: "13px" }}>
+                  되돌리기
+                </button>
+                <button disabled={!review?.capabilities.can_approve || hasUnsavedEdits} onClick={() => approve().catch((error) => setMessage(error.message))} style={{ minHeight: "34px", padding: "0 12px", background: "#03c75a", color: "#ffffff", fontSize: "13px" }}>
+                  승인
+                </button>
+                <button className="secondary" disabled={!review?.capabilities.can_distribute || hasUnsavedEdits} onClick={() => loadDistributionPreview().catch((error) => setMessage(error.message))} style={{ minHeight: "34px", padding: "0 12px", fontSize: "13px" }}>
+                  배포 미리보기
+                </button>
+              </div>
             </div>
 
             {review && draftResult ? (
@@ -1232,89 +1291,110 @@ function App() {
                 onEditReasonChange={setEditReason}
               />
             ) : (
-              <div className="empty">회의록 검토 패키지를 불러오세요.</div>
+              <div style={{ padding: "40px", textAlign: "center", color: "var(--muted)", border: "1px dashed var(--line)", borderRadius: "8px" }}>
+                회의 ID를 입력하고 [검토 불러오기]를 눌러 승인 대상 목록을 조회하세요.
+              </div>
             )}
+            
             {distributionPreview && (
-              <DistributionPanel
-                preview={distributionPreview}
-                logs={distributionLogs}
-                onPreviewChange={setDistributionPreview}
-                onSend={() => distributeMeeting().catch((error) => setMessage(error.message))}
-                onRefreshLogs={() => loadDistributionLogs(distributionPreview.meeting.meeting_id).catch((error) => setMessage(error.message))}
-              />
+              <div style={{ marginTop: "20px", borderTop: "1px solid var(--line)", paddingTop: "20px" }}>
+                <DistributionPanel
+                  preview={distributionPreview}
+                  logs={distributionLogs}
+                  onPreviewChange={setDistributionPreview}
+                  onSend={() => distributeMeeting().catch((error) => setMessage(error.message))}
+                  onRefreshLogs={() => loadDistributionLogs(distributionPreview.meeting.meeting_id).catch((error) => setMessage(error.message))}
+                />
+              </div>
             )}
-            {!distributionPreview && distributionLogs.length > 0 && <DistributionLogPanel logs={distributionLogs} />}
-          </section>
-        </section>
+            {!distributionPreview && distributionLogs.length > 0 && (
+              <div style={{ marginTop: "20px", borderTop: "1px solid var(--line)", paddingTop: "20px" }}>
+                <DistributionLogPanel logs={distributionLogs} />
+              </div>
+            )}
+          </div>
+
+          {/* (3) 회의록 상세 & 문서함 (합체 영역) */}
+          <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "24px" }}>
+            {/* 회의록 스크립트 상세 */}
+            <div className="card-panel" style={{ background: "#ffffff", padding: "20px", borderRadius: "12px", border: "1px solid var(--line)", display: "flex", flexDirection: "column", minHeight: "450px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <FileText size={18} /> 회의 스크립트 상세
+                </h3>
+                {review?.meeting.audio_path && (
+                  <span style={{ fontSize: "12px", background: "#f1f5f9", padding: "2px 8px", borderRadius: "4px", color: "var(--muted)" }}>
+                    음성 파일 포함
+                  </span>
+                )}
+              </div>
+              <div style={{ flex: 1, maxHeight: "360px", overflowY: "auto", border: "1px solid var(--line)", borderRadius: "8px", padding: "16px", background: "#f8fafc" }}>
+                {review?.meeting.transcript ? (
+                  <div style={{ whiteSpace: "pre-wrap", lineHeight: "1.6", fontSize: "14px", color: "var(--ink)" }}>
+                    {review.meeting.transcript}
+                  </div>
+                ) : (
+                  <div style={{ textAlign: "center", color: "var(--muted)", padding: "80px 0" }}>
+                    선택된 회의의 스크립트가 없습니다. 회의 ID를 통해 검토를 불러오시면 상세 텍스트 내용이 여기에 표시됩니다.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 프로젝트 문서함 */}
+            <div className="card-panel" style={{ background: "#ffffff", padding: "20px", borderRadius: "12px", border: "1px solid var(--line)", minHeight: "450px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <Layers size={18} /> 프로젝트 지식 문서함
+                </h3>
+                <button className="secondary" onClick={() => loadKnowledgeItems().catch((error) => setMessage(error.message))} style={{ minHeight: "28px", padding: "0 10px", fontSize: "12px" }}>
+                  조회/새로고침
+                </button>
+              </div>
+              
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "2px solid var(--line)", textAlign: "left", color: "var(--muted)" }}>
+                      <th style={{ padding: "8px 4px" }}>구분</th>
+                      <th style={{ padding: "8px 4px" }}>요약</th>
+                      <th style={{ padding: "8px 4px" }}>등록일</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {knowledgeItems.map((item) => (
+                      <tr key={item.knowledge_id} style={{ borderBottom: "1px solid #f0f4f8" }}>
+                        <td style={{ padding: "8px 4px" }}>
+                          <span style={{
+                            padding: "2px 6px",
+                            borderRadius: "4px",
+                            fontSize: "10px",
+                            fontWeight: "bold",
+                            background: item.kind === "action_item" ? "#fee2e2" : item.kind === "decision" ? "#dbeafe" : "#fef3c7",
+                            color: item.kind === "action_item" ? "#ef4444" : item.kind === "decision" ? "#2563eb" : "#d97706"
+                          }}>
+                            {item.kind === "action_item" ? "액션" : item.kind === "decision" ? "의사결정" : "지식"}
+                          </span>
+                        </td>
+                        <td style={{ padding: "8px 4px", fontWeight: "bold", color: "var(--ink)" }}>{item.title}</td>
+                        <td style={{ padding: "8px 4px", color: "var(--muted)" }}>{item.created_at.split("T")[0]}</td>
+                      </tr>
+                    ))}
+                    {knowledgeItems.length === 0 && (
+                      <tr>
+                        <td colSpan={3} style={{ padding: "40px 0", textAlign: "center", color: "var(--muted)" }}>
+                          프로젝트를 선택 후 문서를 조회해 주세요.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
       ) : activeView === "review" ? (
-        <section className="workspace">
-          <aside>
-            <h2>Projects</h2>
-            <select value={selectedProject} onChange={(event) => setSelectedProject(event.target.value)}>
-              <option value="">선택</option>
-              {projects.map((project) => (
-                <option key={project.project_id} value={project.project_id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-            {activeProject && (
-              <dl>
-                <dt>Project ID</dt>
-                <dd>{activeProject.project_id}</dd>
-                <dt>Status</dt>
-                <dd>{activeProject.status}</dd>
-              </dl>
-            )}
-          </aside>
-
-          <section className="review">
-            <div className="toolbar">
-              <input
-                value={meetingId}
-                onChange={(event) => setMeetingId(event.target.value)}
-                placeholder="Meeting ID"
-              />
-              <button onClick={() => loadReview().catch((error) => setMessage(error.message))}>
-                <ClipboardList size={16} /> 검토 불러오기
-              </button>
-              <button disabled={!review?.capabilities.can_edit || !hasUnsavedEdits} onClick={() => saveEdits().catch((error) => setMessage(error.message))}>
-                <Save size={16} /> 저장
-              </button>
-              <button className="secondary" disabled={!hasUnsavedEdits} onClick={resetDraft}>
-                <RotateCcw size={16} /> 되돌리기
-              </button>
-              <button disabled={!review?.capabilities.can_approve || hasUnsavedEdits} onClick={() => approve().catch((error) => setMessage(error.message))}>
-                <Send size={16} /> 승인
-              </button>
-              <button className="secondary" disabled={!review?.capabilities.can_distribute || hasUnsavedEdits} onClick={() => loadDistributionPreview().catch((error) => setMessage(error.message))}>
-                <Mail size={16} /> 배포 미리보기
-              </button>
-            </div>
-
-            {review && draftResult ? (
-              <ReviewPanel
-                review={review}
-                draft={draftResult}
-                editReason={editReason}
-                onDraftChange={setDraftResult}
-                onEditReasonChange={setEditReason}
-              />
-            ) : (
-              <div className="empty">회의록 검토 패키지를 불러오세요.</div>
-            )}
-            {distributionPreview && (
-              <DistributionPanel
-                preview={distributionPreview}
-                logs={distributionLogs}
-                onPreviewChange={setDistributionPreview}
-                onSend={() => distributeMeeting().catch((error) => setMessage(error.message))}
-                onRefreshLogs={() => loadDistributionLogs(distributionPreview.meeting.meeting_id).catch((error) => setMessage(error.message))}
-              />
-            )}
-            {!distributionPreview && distributionLogs.length > 0 && <DistributionLogPanel logs={distributionLogs} />}
-          </section>
-        </section>
+        <div className="empty">검토·승인 화면은 회의록 탭과 통합되었습니다. 상단의 [회의록 & 문서 승인] 메뉴를 이용하세요.</div>
       ) : (
         <AdminUsersPanel
           users={adminUsers}
@@ -2372,31 +2452,7 @@ function VisualConsole(props: Parameters<typeof LegacyVisualConsole>[0]) {
 
         <section className="workspace-layout">
 
-          {/* 운영 관리자 대시보드 - 최상단 배치 */}
-          <article className="mf-panel mf-span-12 admin-showcase">
-            <PanelHeader title="운영 관리자 대시보드" action="ADMIN-01" />
-            <div className="admin-metric-strip">
-              <div><span>회사 규모</span><strong>{DEMO_COMPANY_HEADCOUNT}명</strong><small>개발 {DEMO_COMPANY_DEVELOPER_COUNT}명</small></div>
-              <div><span>연매출</span><strong>{DEMO_COMPANY_REVENUE_LABEL}</strong><small>SW 개발회사</small></div>
-              <div><span>본부 구성</span><strong>{DEMO_COMPANY_DIVISION_COUNT}개</strong><small>{DEMO_COMPANY_DIVISIONS.join(" · ")}</small></div>
-              <div><span>전체 프로젝트 수</span><strong>{dashboard?.projects ?? DEMO_COMPANY_PROJECT_COUNT}</strong><small>새싹SW 기준 15건</small></div>
-              <div><span>분석 대기 작업</span><strong>{operationQueue?.email_distributions.retry_due ?? 0}</strong><small>회의 자동화 모듈</small></div>
-              <div><span>배포 실패</span><strong className="danger">{dashboard?.distribution_failures ?? 0}</strong><small>프로젝트 구성원 자동 배포</small></div>
-            </div>
-            <div className="admin-grid">
-              <div className="admin-donut"><strong>{DEMO_COMPANY_PROJECT_COUNT}</strong><span>새싹SW 프로젝트</span></div>
-              <div className="worker-list">
-                {["worker-01", "worker-02", "worker-03", "worker-04", "worker-05"].map((worker, index) => (
-                  <div key={worker}><span>{worker}</span><i style={{ width: `${index === 4 ? 8 : 88 - index * 8}%` }} /><b>{index === 4 ? "오류" : "실행 중"}</b></div>
-                ))}
-              </div>
-              <div className="admin-table">
-                {["텍스트 추출 실패", "S3 업로드 실패", "파서 오류", "이메일 전송 실패"].map((error, index) => (
-                  <div key={error}><span>10:{28 - index * 7}:14</span><b>{error}</b><small>{projectTitle}</small></div>
-                ))}
-              </div>
-            </div>
-          </article>
+
 
           <article className="mf-panel mf-span-4">
             <PanelHeader title="최근 회의록" action="더보기" />
