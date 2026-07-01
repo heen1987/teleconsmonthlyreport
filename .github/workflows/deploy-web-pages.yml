@@ -47,14 +47,19 @@ jobs:
           AIPMS_PAGES_BASE_PATH: ${{ vars.AIPMS_PAGES_BASE_PATH || '' }}
           REPOSITORY_NAME: ${{ github.event.repository.name }}
         run: |
-          pages_url="${AIPMS_PLATFORM_URL:-https://${GITHUB_REPOSITORY_OWNER}.github.io/${REPOSITORY_NAME}}"
+          # pages_url is always the static GitHub Pages host: web_console_url/app_url/
+          # links must stay on this domain no matter what the backend API URL is.
+          pages_url="https://${GITHUB_REPOSITORY_OWNER}.github.io/${REPOSITORY_NAME}"
+          # api_url is the live backend (Cloudflare tunnel or other public HTTPS URL).
+          # It must never be the Pages URL itself -- GitHub Pages cannot serve the REST API.
+          api_url="${AIPMS_PLATFORM_URL:-$pages_url}"
           base_path="${AIPMS_PAGES_BASE_PATH:-/${REPOSITORY_NAME}/}"
-          case "$pages_url" in
+          case "$api_url" in
             http://127.*|https://127.*|http://localhost*|https://localhost*|\
             http://10.*|https://10.*|http://192.168.*|https://192.168.*|\
             http://172.1[6-9].*|https://172.1[6-9].*|http://172.2[0-9].*|https://172.2[0-9].*|\
             http://172.3[0-1].*|https://172.3[0-1].*)
-              echo "AIPMS_PLATFORM_URL must be the GitHub Pages platform URL or another public HTTPS URL, not a local/LAN IP: $pages_url" >&2
+              echo "AIPMS_PLATFORM_URL must be the public HTTPS backend API URL, not a local/LAN IP: $api_url" >&2
               exit 2
               ;;
           esac
@@ -66,7 +71,7 @@ jobs:
             "version": 1,
             "mode": "github_pages_static_index",
             "platform_base_url": "$pages_url",
-            "platform_api_url": "$pages_url",
+            "platform_api_url": "$api_url",
             "platform_index_url": "$pages_url/platform/index.json",
             "web_console_url": "$pages_url/",
             "app_url": "$app_url",
@@ -88,7 +93,7 @@ jobs:
           }
           EOF
           {
-            echo "AIPMS_RESOLVED_PLATFORM_URL=$pages_url"
+            echo "AIPMS_RESOLVED_API_URL=$api_url"
             echo "AIPMS_RESOLVED_PLATFORM_INDEX_URL=$pages_url/platform/index.json"
             echo "AIPMS_RESOLVED_BASE_PATH=$base_path"
             echo "AIPMS_RESOLVED_APP_BASE_PATH=${base_path%/}/app/"
@@ -98,7 +103,7 @@ jobs:
         run: |
           rm -rf pages-dist dist
           mkdir -p pages-dist
-          VITE_API_BASE="$AIPMS_RESOLVED_PLATFORM_URL" \
+          VITE_API_BASE="$AIPMS_RESOLVED_API_URL" \
           VITE_PLATFORM_INDEX_URL="$AIPMS_RESOLVED_PLATFORM_INDEX_URL" \
           VITE_BASE_PATH="$AIPMS_RESOLVED_APP_BASE_PATH" \
           VITE_DISABLE_PUBLIC_COPY=1 \
