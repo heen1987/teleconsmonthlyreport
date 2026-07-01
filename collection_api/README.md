@@ -12,6 +12,7 @@ Responsibilities:
 - worker heartbeat
 - job claim/lease/retry
 - completion/failure status
+- integrated STT/LLM worker when `WORKER_LOOP_ENABLED=true`
 
 Non-responsibilities:
 
@@ -19,8 +20,8 @@ Non-responsibilities:
 - project/member business ownership
 - minutes approval
 - PMS task/decision/resource finalization
-- STT or LLM processing
 
-Current local scaffold uses FastAPI/PostgreSQL to match the existing PoC.
-The Drive target may later migrate this service to Flask/MySQL/Redis/RQ if the
-team decides to follow that stack exactly.
+Current local scaffold uses FastAPI/PostgreSQL to match the existing PoC. The
+current Mac mini deployment runs Collection and analysis together in this
+service process; the legacy `analysis_server/` package is kept only for
+compatibility and migration reference.

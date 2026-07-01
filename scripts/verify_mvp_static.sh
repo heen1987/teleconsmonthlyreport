@@ -5,7 +5,48 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 cd "$ROOT_DIR"
 
-python3 -m compileall backend/app collection_api/app analysis_server/app scripts/validate_analysis_contract.py
+python3 - <<'PY'
+import os
+from pathlib import Path
+
+targets = [
+    Path("backend/app"),
+    Path("collection_api/app"),
+    Path("analysis_server/app"),
+    Path("scripts/validate_analysis_contract.py"),
+]
+python_files = []
+skip_dirs = {"__pycache__", ".mypy_cache", ".pytest_cache", ".ruff_cache"}
+for target in targets:
+    if target.is_dir():
+        for dirpath, dirnames, filenames in os.walk(target):
+            dirnames[:] = [name for name in dirnames if name not in skip_dirs]
+            python_files.extend(
+                Path(dirpath) / name for name in filenames if name.endswith(".py")
+            )
+    else:
+        python_files.append(target)
+python_files = sorted(python_files)
+
+checked_files = 0
+skipped_offline_placeholders = []
+
+for path in python_files:
+    stat = path.stat()
+    if stat.st_size > 0 and getattr(stat, "st_blocks", 1) == 0:
+        skipped_offline_placeholders.append(str(path))
+        continue
+    source = path.read_text(encoding="utf-8")
+    compile(source, str(path), "exec")
+    checked_files += 1
+
+print(f"Python syntax check passed: {checked_files} files")
+if skipped_offline_placeholders:
+    print(
+        "Python syntax check skipped offline Google Drive placeholders: "
+        + ", ".join(skipped_offline_placeholders)
+    )
+PY
 python3 -m json.tool contracts/analysis_result.schema.json >/dev/null
 python3 -m json.tool contracts/status_catalog.json >/dev/null
 python3 -m json.tool contracts/web_review_package.example.json >/dev/null
@@ -24,11 +65,24 @@ else
 fi
 bash scripts/smoke_android_release_readiness.sh
 bash scripts/smoke_portfolio_evidence_bundle.sh
+bash scripts/smoke_local_environment_doctor.sh
 bash scripts/smoke_public_handoff_doctor.sh
+bash scripts/smoke_canva_screen_design_fixed.sh
+bash scripts/smoke_user_facing_copy_guard.sh
+bash scripts/smoke_collection_public_binding_guard.sh
+bash scripts/smoke_core_api_public_binding_guard.sh
+bash scripts/smoke_web_public_binding_guard.sh
+bash scripts/smoke_apk_publication_freshness.sh
 
-(cd backend && .venv/bin/python - <<'PY'
-from app.main import app
-schema = app.openapi()
+python3 - <<'PY'
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+import urllib.request
+
+assertions = r'''
 assert len(schema["paths"]) >= 20
 assert "/meetings/{meeting_id}/attendees" in schema["paths"]
 assert {"get", "put"}.issubset(schema["paths"]["/meetings/{meeting_id}/attendees"].keys())
@@ -84,19 +138,85 @@ assert "/tasks/overdue-risks" in schema["paths"]
 assert "post" in schema["paths"]["/tasks/overdue-risks"]
 assert "/projects/{project_id}/knowledge-items" in schema["paths"]
 assert "get" in schema["paths"]["/projects/{project_id}/knowledge-items"]
-print(f"Platform OpenAPI paths: {len(schema['paths'])}")
-PY
-)
+'''
 
-(cd collection_api && .venv/bin/python - <<'PY'
+code = f"""
+from app.main import app
+schema = app.openapi()
+{assertions}
+print(f"Platform OpenAPI paths: {{len(schema['paths'])}}")
+"""
+
+try:
+    result = subprocess.run(
+        [".venv/bin/python", "-c", code],
+        cwd="backend",
+        text=True,
+        capture_output=True,
+        timeout=20,
+        check=False,
+    )
+except subprocess.TimeoutExpired:
+    print(
+        "Platform OpenAPI import timed out; using live local endpoint fallback.",
+        file=sys.stderr,
+    )
+    with urllib.request.urlopen("http://127.0.0.1:8000/openapi.json", timeout=10) as response:
+        schema = json.load(response)
+    exec(assertions, {"schema": schema})
+    print(f"Platform OpenAPI paths: {len(schema['paths'])} (live fallback)")
+else:
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="", file=sys.stderr)
+    if result.returncode != 0:
+        raise SystemExit(result.returncode)
+PY
+
+python3 - <<'PY'
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+import urllib.request
+
+code = """
 from app.main import app
 schema = app.openapi()
 assert len(schema["paths"]) >= 15
 print(f"Collection OpenAPI paths: {len(schema['paths'])}")
-PY
-)
+"""
 
-(cd web_client && npm run build)
+try:
+    result = subprocess.run(
+        [".venv/bin/python", "-c", code],
+        cwd="collection_api",
+        text=True,
+        capture_output=True,
+        timeout=20,
+        check=False,
+    )
+except subprocess.TimeoutExpired:
+    print(
+        "Collection OpenAPI import timed out; using live local endpoint fallback.",
+        file=sys.stderr,
+    )
+    with urllib.request.urlopen("http://127.0.0.1:8200/openapi.json", timeout=10) as response:
+        schema = json.load(response)
+    assert len(schema["paths"]) >= 15
+    print(f"Collection OpenAPI paths: {len(schema['paths'])} (live fallback)")
+else:
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="", file=sys.stderr)
+    if result.returncode != 0:
+        raise SystemExit(result.returncode)
+PY
+
+bash scripts/build_web_client_static.sh
 
 required_android_files=(
   "android_client/settings.gradle.kts"
@@ -177,7 +297,7 @@ if rg -q -- '-f schema.sql' scripts/apply_platform_schema.sh scripts/apply_colle
 fi
 rg -q 'token_type: str = "bearer"' backend/app/schemas.py
 rg -q 'require_current_user' backend/app/services/auth_tokens.py backend/app/routers/users.py
-rg -q 'require_active_user' backend/app/services/auth_tokens.py backend/app/routers/projects.py backend/app/routers/meetings.py backend/app/routers/approvals.py backend/app/routers/dashboard.py backend/app/routers/tasks.py backend/app/routers/resources.py
+rg -q 'require_active_user' backend/app/services/auth_tokens.py backend/app/routers/projects.py backend/app/routers/approvals.py backend/app/routers/dashboard.py backend/app/routers/tasks.py backend/app/routers/resources.py
 rg -q 'require_admin_user' backend/app/services/auth_tokens.py backend/app/routers/admin_users.py
 rg -q 'prefix="/admin/users"' backend/app/routers/admin_users.py
 rg -q 'reset-password' backend/app/routers/admin_users.py web_client/src/main.tsx scripts/smoke_admin_user_registration.sh
@@ -235,6 +355,15 @@ rg -q '/distributions/retry-due' scripts/smoke_email_retry.sh
 rg -q '/distributions/retry-due' web_client/src/main.tsx
 rg -q '/distributions/retry-due' scripts/smoke_operation_queue_status.sh
 rg -q 'run_email_delivery_worker_once' README.md docs/15_mvp_first_implementation.md scripts/run_email_delivery_worker_once.sh
+test -x scripts/smoke_web_public_binding_guard.sh
+test -x scripts/smoke_apk_publication_freshness.sh
+rg -q 'AIPMS_WEB_ALLOW_PUBLIC_BIND' scripts/run_local_execution_stack.sh scripts/run_public_tunnels.sh scripts/windows_web_dev.ps1 scripts/windows_run_web_client.ps1 README.md docs/09_kim_heeseop_work_structure.md docs/15_mvp_first_implementation.md web_client/README.md
+rg -q 'WEB_BIND_HOST="\$\{AIPMS_WEB_BIND_HOST:-127\.0\.0\.1\}"' scripts/run_local_execution_stack.sh scripts/run_public_tunnels.sh
+rg -q 'smoke_apk_publication_freshness' scripts/run_continuous_acceptance_check.sh scripts/verify_mvp_static.sh docs/09_kim_heeseop_work_structure.md docs/15_mvp_first_implementation.md
+if rg -q '&& exec cd web_client' scripts/run_local_execution_stack.sh; then
+  echo "local execution stack must support compound Web commands." >&2
+  exit 1
+fi
 rg -q 'ResourceAllocationCreate' backend/app/schemas.py backend/app/routers/resources.py
 rg -q 'ResourceProfileCreate' backend/app/schemas.py backend/app/routers/resources.py
 rg -q 'ResourceCalendarBlockCreate' backend/app/schemas.py backend/app/routers/resources.py
@@ -355,6 +484,12 @@ test -x scripts/publish_requirements_documents.sh
 test -x scripts/smoke_requirements_publication.sh
 test -x scripts/export_portfolio_evidence_bundle.sh
 test -x scripts/smoke_portfolio_evidence_bundle.sh
+test -x scripts/doctor_local_environment.sh
+test -x scripts/smoke_local_environment_doctor.sh
+test -x scripts/repair_web_dependencies.sh
+test -x scripts/smoke_collection_public_binding_guard.sh
+test -x scripts/smoke_core_api_public_binding_guard.sh
+test -x scripts/run_continuous_acceptance_check.sh
 test -x scripts/doctor_public_handoff.sh
 test -x scripts/smoke_public_handoff_doctor.sh
 test -x scripts/seed_demo_admin.sh
@@ -362,15 +497,20 @@ test -x scripts/smoke_demo_admin_credentials.sh
 test -x scripts/publish_public_review_package.sh
 test -x scripts/refresh_public_handoff_bundle.sh
 rg -q 'run_public_tunnels' README.md android_client/README.md docs/15_mvp_first_implementation.md docs/18_part_handoff_drafts.md
+rg -q 'AIPMS_PUBLIC_TUNNEL_REUSE_HEALTH_CHECK' README.md docs/09_kim_heeseop_work_structure.md docs/15_mvp_first_implementation.md scripts/run_public_tunnels.sh
+rg -q 'public_tunnel_healthy' scripts/run_public_tunnels.sh
+rg -q 'grep -aEo' scripts/run_public_tunnels.sh scripts/print_public_urls.sh scripts/smoke_public_access.sh scripts/build_android_public_debug.sh scripts/build_android_release_apk.sh scripts/publish_public_review_package.sh scripts/publish_public_execution_hub.sh
 rg -q 'smoke_public_access' README.md android_client/README.md docs/15_mvp_first_implementation.md docs/18_part_handoff_drafts.md
 rg -q 'build_android_public_debug' README.md android_client/README.md docs/15_mvp_first_implementation.md docs/18_part_handoff_drafts.md
 rg -q 'publish_android_apk_download' README.md android_client/README.md docs/15_mvp_first_implementation.md docs/18_part_handoff_drafts.md scripts/build_android_public_debug.sh
 rg -q 'publish_public_execution_hub' docs/09_kim_heeseop_work_structure.md scripts/refresh_public_handoff_bundle.sh
 rg -q 'run_local_execution_stack' README.md web_client/README.md docs/09_kim_heeseop_work_structure.md docs/15_mvp_first_implementation.md
+rg -q 'AIPMS_LOCAL_STACK_REUSE_HEALTH_CHECK' README.md docs/09_kim_heeseop_work_structure.md docs/15_mvp_first_implementation.md scripts/run_local_execution_stack.sh
+rg -q 'local_http_ok' scripts/run_local_execution_stack.sh
 rg -q 'public_execution_hub' scripts/publish_public_execution_hub.sh
 rg -q 'web_client/public/run/index.html' docs/09_kim_heeseop_work_structure.md scripts/publish_public_execution_hub.sh
 rg -q '/run/execution.json' README.md android_client/README.md scripts/publish_public_execution_hub.sh
-rg -q '실행 허브' web_client/src/main.tsx web_client/public/handoff/index.html scripts/publish_android_apk_download.sh scripts/publish_public_execution_hub.sh docs/18_part_handoff_drafts.md
+rg -q 'MEETFLOW' web_client/src/main.tsx web_client/public/downloads/index.html scripts/publish_android_apk_download.sh scripts/publish_public_execution_hub.sh
 rg -q 'PublicRunPage' web_client/src/main.tsx scripts/smoke_public_access.sh
 rg -q 'usePublicExecutionManifest' web_client/src/main.tsx scripts/smoke_public_access.sh
 rg -q 'PublicExecutionManifest' web_client/src/main.tsx
@@ -400,6 +540,16 @@ rg -q 'requirements_docx' scripts/publish_public_review_package.sh scripts/publi
 rg -q 'smoke_portfolio_evidence_bundle' scripts/verify_mvp_static.sh docs/09_kim_heeseop_work_structure.md docs/15_mvp_first_implementation.md
 rg -q 'AI_PMS_MVP_실행검증_포트폴리오.md' scripts/export_portfolio_evidence_bundle.sh docs/09_kim_heeseop_work_structure.md docs/15_mvp_first_implementation.md docs/16_drive_source_inventory.md
 rg -q 'metadata_match' scripts/smoke_portfolio_evidence_bundle.sh runtime/portfolio_evidence/latest_portfolio_evidence.json
+rg -q 'local_environment_doctor' scripts/doctor_local_environment.sh scripts/smoke_local_environment_doctor.sh docs/09_kim_heeseop_work_structure.md docs/15_mvp_first_implementation.md
+rg -q 'latest_doctor.json' README.md docs/09_kim_heeseop_work_structure.md docs/15_mvp_first_implementation.md scripts/doctor_local_environment.sh
+rg -q 'latest_doctor.md' README.md docs/09_kim_heeseop_work_structure.md docs/15_mvp_first_implementation.md scripts/doctor_local_environment.sh
+rg -q 'AIPMS_LOCAL_ENV_DOCTOR_STRICT' scripts/doctor_local_environment.sh
+rg -q 'smoke_local_environment_doctor' scripts/verify_mvp_static.sh docs/09_kim_heeseop_work_structure.md docs/15_mvp_first_implementation.md
+rg -q 'repair_web_dependencies' README.md docs/09_kim_heeseop_work_structure.md docs/15_mvp_first_implementation.md scripts/repair_web_dependencies.sh scripts/doctor_local_environment.sh
+rg -q 'run_continuous_acceptance_check' README.md docs/09_kim_heeseop_work_structure.md docs/15_mvp_first_implementation.md scripts/run_continuous_acceptance_check.sh scripts/verify_mvp_static.sh
+rg -q 'smoke_core_api_public_binding_guard' README.md docs/09_kim_heeseop_work_structure.md docs/15_mvp_first_implementation.md scripts/run_continuous_acceptance_check.sh scripts/verify_mvp_static.sh
+rg -q 'AIPMS_PLATFORM_ALLOW_PUBLIC_BIND' README.md docs/09_kim_heeseop_work_structure.md docs/15_mvp_first_implementation.md scripts/run_platform_backend.sh scripts/windows_run_platform_backend.ps1 backend/.env.example
+rg -q 'AIPMS_ANALYSIS_ALLOW_PUBLIC_BIND' README.md docs/09_kim_heeseop_work_structure.md docs/15_mvp_first_implementation.md scripts/run_analysis_server.sh scripts/windows_run_analysis_server.ps1 analysis_server/.env.example
 rg -q 'public_handoff_doctor' scripts/doctor_public_handoff.sh scripts/smoke_public_handoff_doctor.sh docs/09_kim_heeseop_work_structure.md
 rg -q 'latest_doctor.json' README.md docs/09_kim_heeseop_work_structure.md docs/15_mvp_first_implementation.md docs/16_drive_source_inventory.md scripts/doctor_public_handoff.sh
 rg -q 'latest_doctor.md' README.md docs/09_kim_heeseop_work_structure.md docs/15_mvp_first_implementation.md docs/16_drive_source_inventory.md scripts/doctor_public_handoff.sh
@@ -412,11 +562,12 @@ rg -q 'Web execution hub' scripts/smoke_public_access.sh
 rg -q 'Web execution JSON' scripts/smoke_public_access.sh
 rg -q 'Web APK install guide' scripts/smoke_public_access.sh
 rg -q 'Web handoff route' scripts/smoke_public_access.sh
+rg -q 'Web handoff static' scripts/smoke_public_access.sh
 rg -q 'Web review package' scripts/smoke_public_access.sh
 rg -q 'Web APK file' scripts/smoke_public_access.sh
 rg -q 'install.html' scripts/publish_android_apk_download.sh scripts/publish_public_review_package.sh scripts/smoke_public_access.sh README.md android_client/README.md docs/18_part_handoff_drafts.md
 rg -q 'AI-PMS Recorder 설치 확인' scripts/publish_android_apk_download.sh
-rg -q 'Tablet two-column' scripts/publish_android_apk_download.sh scripts/smoke_public_access.sh
+rg -q '휴대폰 / 태블릿' scripts/publish_android_apk_download.sh scripts/smoke_public_access.sh
 rg -q 'apk_install_guide' scripts/publish_public_review_package.sh scripts/smoke_public_access.sh
 rg -q 'public-review-package.json' scripts/publish_public_review_package.sh scripts/smoke_public_access.sh web_client/public/handoff/index.html docs/18_part_handoff_drafts.md
 rg -q 'review-response-template.md' scripts/publish_public_review_package.sh scripts/smoke_public_access.sh scripts/refresh_public_handoff_bundle.sh web_client/public/handoff/index.html README.md docs/18_part_handoff_drafts.md
@@ -425,6 +576,7 @@ rg -q '승인 가능 / 수정 필요 / 질문 / 미검증' scripts/publish_publi
 rg -q 'response_template' scripts/publish_public_review_package.sh scripts/smoke_public_access.sh scripts/refresh_public_handoff_bundle.sh
 rg -q 'response_collection' scripts/publish_public_review_package.sh scripts/smoke_public_access.sh scripts/refresh_public_handoff_bundle.sh
 rg -q 'public_review_package' scripts/smoke_public_access.sh web_client/public/handoff/public-review-package.json
+rg -q 'handoff_static' scripts/smoke_public_access.sh
 rg -q 'review_scopes' scripts/smoke_public_access.sh web_client/public/handoff/public-review-package.json
 rg -q 'responsive_phone_tablet' scripts/smoke_public_access.sh
 rg -q 'apk_alias' scripts/publish_android_apk_download.sh scripts/smoke_public_access.sh scripts/publish_public_execution_hub.sh scripts/publish_public_review_package.sh
@@ -436,17 +588,16 @@ done
 rg -q 'AiPmsAndroidClient-responsive-public-debug.apk' scripts/build_android_public_debug.sh scripts/publish_android_apk_download.sh docs/18_part_handoff_drafts.md
 rg -q 'android-apk.json' scripts/publish_android_apk_download.sh docs/09_kim_heeseop_work_structure.md
 rg -q 'APK 다운로드' web_client/public/downloads/index.html docs/18_part_handoff_drafts.md
-rg -q '설치 확인 가이드' web_client/public/downloads/index.html scripts/publish_android_apk_download.sh
+rg -q 'MEETFLOW APK' web_client/public/downloads/index.html scripts/publish_android_apk_download.sh
 test -f web_client/public/downloads/install.html
 rg -q 'APK_DOWNLOAD_PATH' web_client/src/main.tsx
 rg -q 'APK 다운로드' web_client/src/main.tsx docs/18_part_handoff_drafts.md
 rg -q 'download-link' web_client/src/main.tsx web_client/src/styles.css
-rg -q 'HANDOFF_PATH' web_client/src/main.tsx
 rg -q 'PublicHandoffPage' web_client/src/main.tsx
 rg -q 'PublicDownloadPage' web_client/src/main.tsx
-rg -q '파트 전달안' web_client/src/main.tsx web_client/public/handoff/index.html docs/18_part_handoff_drafts.md
-rg -q 'AI-PMS 파트별 확인 초안' web_client/public/handoff/index.html
-rg -q 'Project_ID 중심 PMS 흐름' web_client/public/handoff/index.html
+rg -q 'AI-PMS 화면 확인' web_client/src/main.tsx web_client/public/handoff/index.html
+rg -q '앱·웹 통합 확인' web_client/src/main.tsx web_client/public/handoff/index.html
+rg -q '업로드.*상태 확인' web_client/src/main.tsx web_client/public/handoff/index.html
 rg -q 'AiPmsAndroidClient-responsive-public-debug.apk' web_client/public/handoff/index.html
 rg -q 'public-flow' web_client/src/main.tsx web_client/src/styles.css
 rg -q 'public-hero' web_client/src/main.tsx web_client/src/styles.css

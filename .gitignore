@@ -3,10 +3,12 @@
 __pycache__/
 *.py[cod]
 .env
+.env.bak
 .DS_Store
 desktop.ini
 node_modules/
 .node_modules_delete_pending_*/
+.node_modules_broken_*/
 dist/
 logs/
 runtime/

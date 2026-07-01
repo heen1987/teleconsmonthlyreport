@@ -1,25 +1,25 @@
 {
   "kind": "public_execution_hub",
   "project": "AI-PMS",
-  "generated_at": "2026-06-30T00:20:25Z",
+  "generated_at": "2026-06-30T23:54:56Z",
   "public_urls": {
-    "run_hub": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/run/",
-    "web_console": "https://textiles-zen-syndrome-ultimately.trycloudflare.com",
-    "apk_download_page": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/downloads/",
-    "apk_file": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/downloads/AI-PMS-Recorder.apk",
-    "apk_build_file": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/downloads/AiPmsAndroidClient-responsive-public-debug.apk",
-    "apk_install_guide": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/downloads/install.html",
-    "handoff_page": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/handoff/",
-    "review_package_json": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/handoff/public-review-package.json",
-    "requirements_docx": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/requirements/AI-PMS-requirements-v0.2.docx",
-    "requirements_markdown": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/requirements/AI-PMS-requirements-v0.2.md",
-    "requirements_manifest": "https://textiles-zen-syndrome-ultimately.trycloudflare.com/requirements/requirements.json",
-    "platform_health": "https://other-musicians-recorded-different.trycloudflare.com/health",
-    "platform_docs": "https://other-musicians-recorded-different.trycloudflare.com/docs",
-    "collection_health": "https://warrior-copyright-opinion-saturn.trycloudflare.com/health",
-    "collection_docs": "https://warrior-copyright-opinion-saturn.trycloudflare.com/docs",
-    "analysis_health": "https://monday-cables-optional-cancer.trycloudflare.com/health",
-    "analysis_docs": "https://monday-cables-optional-cancer.trycloudflare.com/docs"
+    "run_hub": "https://ips-owner-bin-craps.trycloudflare.com/run/",
+    "web_console": "https://ips-owner-bin-craps.trycloudflare.com",
+    "apk_download_page": "https://ips-owner-bin-craps.trycloudflare.com/downloads/",
+    "apk_file": "https://ips-owner-bin-craps.trycloudflare.com/downloads/AI-PMS-Recorder.apk",
+    "apk_build_file": "https://ips-owner-bin-craps.trycloudflare.com/downloads/AiPmsAndroidClient-responsive-public-debug.apk",
+    "apk_install_guide": "https://ips-owner-bin-craps.trycloudflare.com/downloads/install.html",
+    "handoff_page": "https://ips-owner-bin-craps.trycloudflare.com/handoff/",
+    "review_package_json": "https://ips-owner-bin-craps.trycloudflare.com/handoff/public-review-package.json",
+    "requirements_docx": "https://ips-owner-bin-craps.trycloudflare.com/requirements/AI-PMS-requirements-v0.2.docx",
+    "requirements_markdown": "https://ips-owner-bin-craps.trycloudflare.com/requirements/AI-PMS-requirements-v0.2.md",
+    "requirements_manifest": "https://ips-owner-bin-craps.trycloudflare.com/requirements/requirements.json",
+    "platform_health": "https://tap-inform-bookstore-disposition.trycloudflare.com/health",
+    "platform_docs": "https://tap-inform-bookstore-disposition.trycloudflare.com/docs",
+    "collection_health": "https://broadway-gateway-potato-forwarding.trycloudflare.com/health",
+    "collection_docs": "https://broadway-gateway-potato-forwarding.trycloudflare.com/docs",
+    "analysis_health": "https://totally-tones-ending-axis.trycloudflare.com/health",
+    "analysis_docs": "https://totally-tones-ending-axis.trycloudflare.com/docs"
   },
   "local_urls": {
     "web_client": "http://127.0.0.1:3000",
@@ -32,19 +32,19 @@
     "package_name": "com.aipms",
     "file_name": "AiPmsAndroidClient-responsive-public-debug.apk",
     "alias_file_name": "AI-PMS-Recorder.apk",
-    "sha256": "ba5f4976ba1a3db3eb3c99db4ebce53ffd5efeff0b7b57ba3d888d29b5184dce",
-    "size_bytes": 2905140,
-    "size_mb": "2.8",
+    "sha256": "c16e486c0a959338c57d3178446776cd210c260299971a5a9f8497e8592c02c1",
+    "size_bytes": 11185933,
+    "size_mb": "10.7",
     "layout": "responsive_phone_tablet",
     "signing": "debug_v2",
-    "published_at": "2026-06-29T23:57:11Z"
+    "published_at": "2026-06-30T23:54:56Z"
   },
   "requirements": {
     "title": "AI-PMS 기반 회의·업무·지식 통합관리 플랫폼 요구사항 정의서",
     "version": "v0.2",
     "docx_file_name": "AI-PMS-requirements-v0.2.docx",
     "markdown_file_name": "AI-PMS-requirements-v0.2.md",
-    "docx_sha256": "bdfcc842eb898a61cfaccec1a30e5df0501b4082fa12f236ff23f03d96aa994d",
+    "docx_sha256": "582199c88784645effbe63f6c62f3af4c01124847ede703d1253db785ffe9674",
     "markdown_sha256": "90b5d5606d976081fd6f9618fa005857322672c6ba1113164eab04024bff66cf",
     "scope_controls": [
       "recording-first Android app",
@@ -54,7 +54,7 @@
       "no speaker mapping",
       "no AI auto-confirmation"
     ],
-    "published_at": "2026-06-30T00:20:25Z"
+    "published_at": "2026-06-30T23:54:56Z"
   },
   "execution_commands": [
     {
@@ -73,7 +73,7 @@
       "label": "로컬 React Web",
       "commands": [
         "cd web_client",
-        "VITE_API_BASE=http://127.0.0.1:8000 npm run dev -- --host 0.0.0.0 --port 3000"
+        "VITE_API_BASE=http://127.0.0.1:8000 npm run dev -- --host 127.0.0.1 --port 3000"
       ]
     },
     {

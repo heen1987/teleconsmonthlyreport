@@ -1,16 +1,24 @@
 from __future__ import annotations
 
-from datetime import date
-from typing import Literal, Optional
+from datetime import date, datetime
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
+
+# ──────────────────────────────────────────────
+# Health
+# ──────────────────────────────────────────────
 
 class AnalysisHealth(BaseModel):
     status: Literal["ok"]
     app: str
     model: str
 
+
+# ──────────────────────────────────────────────
+# LLM / STT 직접 호출 스키마
+# ──────────────────────────────────────────────
 
 class MeetingAnalysisRequest(BaseModel):
     job_id: str = Field(min_length=1)
@@ -108,3 +116,115 @@ class SttResponse(BaseModel):
     job_id: str
     status: Literal["completed"]
     transcript: str
+
+
+# ──────────────────────────────────────────────
+# Collection — Upload Session
+# ──────────────────────────────────────────────
+
+class UploadSessionCreate(BaseModel):
+    project_id: str = Field(min_length=1)
+    meeting_id: str = Field(min_length=1)
+    requested_by: Optional[str] = None
+    file_name: Optional[str] = None
+    content_type: Optional[str] = None
+    expected_size_bytes: Optional[int] = Field(default=None, gt=0)
+    checksum_sha256: Optional[str] = None
+    expires_at: Optional[datetime] = None
+
+
+class UploadSessionOut(BaseModel):
+    session_id: str
+    project_id: str
+    meeting_id: str
+    status: str
+    expires_at: Optional[datetime] = None
+    upload_token: Optional[str] = None  # 생성 직후에만 반환
+
+
+# ──────────────────────────────────────────────
+# Collection — Audio Asset
+# ──────────────────────────────────────────────
+
+class AudioAssetCreate(BaseModel):
+    session_id: str = Field(min_length=1)
+    storage_uri: str = Field(min_length=1)
+    file_name: Optional[str] = None
+    content_type: Optional[str] = None
+    size_bytes: Optional[int] = Field(default=None, gt=0)
+    checksum_sha256: Optional[str] = None
+    duration_seconds: Optional[float] = Field(default=None, gt=0)
+
+
+class AudioAssetOut(BaseModel):
+    asset_id: str
+    session_id: str
+    project_id: str
+    meeting_id: str
+    status: str
+    storage_uri: Optional[str] = None
+    file_name: Optional[str] = None
+    content_type: Optional[str] = None
+    size_bytes: Optional[int] = None
+    checksum_sha256: Optional[str] = None
+    duration_seconds: Optional[float] = None
+
+
+# ──────────────────────────────────────────────
+# Collection — Analysis Job
+# ──────────────────────────────────────────────
+
+class AnalysisJobCreate(BaseModel):
+    session_id: str = Field(min_length=1)
+    asset_id: Optional[str] = None
+    transcript_text: Optional[str] = None
+    language: str = "ko"
+    priority: int = 100
+
+
+class AnalysisJobOut(BaseModel):
+    job_id: str
+    session_id: Optional[str] = None
+    asset_id: Optional[str] = None
+    project_id: str
+    meeting_id: str
+    status: str
+    transcript_text: Optional[str] = None
+    language: Optional[str] = None
+    claimed_by: Optional[str] = None
+    lease_expires_at: Optional[datetime] = None
+    model_name: Optional[str] = None
+    result_json: Optional[Any] = None
+    attempt_count: int = 0
+    max_attempts: int = 3
+    platform_callback_status: Optional[str] = None
+    platform_callback_attempt_count: Optional[int] = None
+    platform_callback_max_attempts: Optional[int] = None
+    platform_callback_next_attempt_at: Optional[datetime] = None
+    platform_callback_last_attempt_at: Optional[datetime] = None
+    platform_callback_completed_at: Optional[datetime] = None
+    platform_callback_last_error: Optional[str] = None
+
+
+# ──────────────────────────────────────────────
+# Collection — Worker / Job Control
+# ──────────────────────────────────────────────
+
+class WorkerHeartbeat(BaseModel):
+    worker_id: str = Field(min_length=1)
+    worker_name: Optional[str] = None
+    status: str = "active"
+    current_job_id: Optional[str] = None
+    model_name: Optional[str] = None
+    host_info: dict = Field(default_factory=dict)
+
+
+class ClaimJobRequest(BaseModel):
+    worker_id: str = Field(min_length=1)
+    lease_seconds: Optional[int] = Field(default=None, gt=0)
+
+
+class JobStatusUpdate(BaseModel):
+    worker_id: str = Field(min_length=1)
+    payload: dict = Field(default_factory=dict)
+    error_message: Optional[str] = None

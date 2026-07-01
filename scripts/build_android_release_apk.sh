@@ -13,7 +13,7 @@ extract_url() {
     echo "Missing tunnel log: $log_file" >&2
     return 1
   fi
-  grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' "$log_file" | tail -1
+  grep -aEo 'https://[a-z0-9-]+\.trycloudflare\.com' "$log_file" | tail -1
 }
 
 require_env() {

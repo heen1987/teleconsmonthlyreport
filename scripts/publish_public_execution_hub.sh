@@ -15,7 +15,7 @@ extract_url() {
   if [ ! -f "$log_file" ]; then
     return 1
   fi
-  grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' "$log_file" | tail -1
+  grep -aEo 'https://[a-z0-9-]+\.trycloudflare\.com' "$log_file" | tail -1
 }
 
 require_url() {
@@ -148,7 +148,7 @@ execution = {
             "label": "로컬 React Web",
             "commands": [
                 "cd web_client",
-                "VITE_API_BASE=http://127.0.0.1:8000 npm run dev -- --host 0.0.0.0 --port 3000",
+                "VITE_API_BASE=http://127.0.0.1:8000 npm run dev -- --host 127.0.0.1 --port 3000",
             ],
         },
         {
@@ -182,28 +182,12 @@ execution_json_path.write_text(
     encoding="utf-8",
 )
 
-def command_block(commands: list[str]) -> str:
-    return "\n".join(html.escape(command) for command in commands)
-
-cards = "\n".join(
-    f"""
-        <article class="run-card">
-          <span>{html.escape(item["label"])}</span>
-          <h3>{html.escape(item["name"])}</h3>
-          <pre><code>{command_block(item["commands"])}</code></pre>
-        </article>
-    """
-    for item in execution["execution_commands"]
-)
-
-checks = "\n".join(f"<li>{html.escape(check)}</li>" for check in execution["minimum_checks"])
-
 index_html = f"""<!doctype html>
 <html lang="ko">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AI-PMS 실행 허브</title>
+    <title>AI-PMS</title>
     <style>
       :root {{
         color: #0b1720;
@@ -235,12 +219,6 @@ index_html = f"""<!doctype html>
         font-size: clamp(28px, 4vw, 44px);
         line-height: 1.12;
       }}
-      header p {{
-        color: #b6d6e7;
-        line-height: 1.55;
-        margin-top: 10px;
-        max-width: 820px;
-      }}
       main {{
         display: grid;
         gap: 18px;
@@ -262,16 +240,11 @@ index_html = f"""<!doctype html>
       h3 {{
         font-size: 16px;
       }}
-      p,
-      li,
       dd,
       dt,
-      a,
-      code {{
+      a {{
         font-size: 14px;
       }}
-      p,
-      li,
       dd,
       dt {{
         color: #405465;
@@ -301,38 +274,6 @@ index_html = f"""<!doctype html>
       a.button.secondary,
       .link-grid a.secondary {{
         background: #27384a;
-      }}
-      .run-grid {{
-        display: grid;
-        gap: 14px;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }}
-      .run-card {{
-        display: grid;
-        gap: 10px;
-        min-width: 0;
-      }}
-      .run-card span {{
-        background: #e7f4ed;
-        border-radius: 999px;
-        color: #146444;
-        display: inline-flex;
-        font-size: 12px;
-        font-weight: 800;
-        justify-self: start;
-        padding: 4px 9px;
-      }}
-      pre {{
-        background: #0b1720;
-        border-radius: 8px;
-        color: #d9f7ff;
-        margin: 0;
-        overflow: auto;
-        padding: 12px;
-        white-space: pre-wrap;
-      }}
-      code {{
-        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       }}
       dl {{
         display: grid;
@@ -374,26 +315,22 @@ index_html = f"""<!doctype html>
   <body>
     <header>
       <div class="inner">
-        <h1>AI-PMS 실행 허브</h1>
-        <p>웹 콘솔, Android APK, API 서버, 외부 공개 터널을 한 곳에서 실행/검증할 수 있게 묶은 페이지입니다.</p>
+        <h1>MEETFLOW</h1>
         <div class="actions">
           <a class="button" href="{html.escape(web_url)}">Web 콘솔</a>
           <a class="button" href="{html.escape(web_url)}/downloads/">APK 다운로드</a>
-          <a class="button secondary" href="{html.escape(web_url)}/requirements/{html.escape(requirements_docx)}">요구사항정의서</a>
-          <a class="button secondary" href="{html.escape(web_url)}/handoff/">파트 전달안</a>
-          <a class="button secondary" href="./execution.json">실행 JSON</a>
         </div>
       </div>
     </header>
     <main>
       <section>
-        <h2>실행 흐름</h2>
+        <h2>전체 처리 흐름</h2>
         <div class="flow">
-          <div>Web<br />시각화/검토</div>
-          <div>Android<br />녹음/업로드</div>
-          <div>Collection<br />수집/job</div>
-          <div>Analysis<br />STT/LLM</div>
-          <div>Platform<br />PMS 반영</div>
+          <div>앱<br />녹음</div>
+          <div>업로드<br />상태 확인</div>
+          <div>회의록<br />검토</div>
+          <div>승인<br />배포</div>
+          <div>업무<br />반영</div>
         </div>
       </section>
 
@@ -402,36 +339,6 @@ index_html = f"""<!doctype html>
         <div class="link-grid">
           <a href="{html.escape(web_url)}">Web 콘솔</a>
           <a href="{html.escape(web_url)}/downloads/">APK 다운로드</a>
-          <a href="{html.escape(web_url)}/downloads/install.html">APK 설치 가이드</a>
-          <a href="{html.escape(platform_url)}/docs">Platform API</a>
-          <a href="{html.escape(collection_url)}/docs">Collection API</a>
-          <a href="{html.escape(analysis_url)}/docs">Analysis Server</a>
-          <a class="secondary" href="{html.escape(web_url)}/requirements/{html.escape(requirements_docx)}">요구사항 DOCX</a>
-          <a class="secondary" href="{html.escape(web_url)}/requirements/{html.escape(requirements_md)}">요구사항 Markdown</a>
-          <a class="secondary" href="{html.escape(web_url)}/handoff/public-review-package.json">검토 패키지 JSON</a>
-        </div>
-      </section>
-
-      <section>
-        <h2>요구사항정의서</h2>
-        <dl>
-          <dt>Title</dt>
-          <dd>{html.escape(requirements_metadata["title"])}</dd>
-          <dt>Version</dt>
-          <dd>{html.escape(requirements_metadata["version"])}</dd>
-          <dt>DOCX</dt>
-          <dd><a href="{html.escape(web_url)}/requirements/{html.escape(requirements_docx)}">{html.escape(requirements_docx)}</a></dd>
-          <dt>Markdown</dt>
-          <dd><a href="{html.escape(web_url)}/requirements/{html.escape(requirements_md)}">{html.escape(requirements_md)}</a></dd>
-          <dt>Scope controls</dt>
-          <dd>{html.escape(", ".join(requirements_metadata["scope_controls"]))}</dd>
-        </dl>
-      </section>
-
-      <section>
-        <h2>실행 명령</h2>
-        <div class="run-grid">
-          {cards}
         </div>
       </section>
 
@@ -440,30 +347,15 @@ index_html = f"""<!doctype html>
         <dl>
           <dt>App</dt>
           <dd>{html.escape(apk_metadata["app_name"])}</dd>
-          <dt>Package</dt>
-          <dd><code>{html.escape(apk_metadata["package_name"])}</code></dd>
           <dt>File</dt>
           <dd><a href="{html.escape(web_url)}/downloads/{html.escape(apk_alias)}">{html.escape(apk_alias)}</a></dd>
-          <dt>Build file</dt>
-          <dd><code>{html.escape(apk_name)}</code></dd>
           <dt>Size</dt>
           <dd>{html.escape(str(apk_metadata["size_mb"]))} MB</dd>
           <dt>Layout</dt>
-          <dd>{html.escape(apk_metadata["layout"])}</dd>
-          <dt>Signing</dt>
-          <dd>{html.escape(apk_metadata["signing"])}</dd>
+          <dd>휴대폰 / 태블릿</dd>
           <dt>Published</dt>
           <dd>{html.escape(apk_metadata["published_at"])}</dd>
-          <dt>SHA256</dt>
-          <dd><code>{html.escape(apk_metadata["sha256"])}</code></dd>
         </dl>
-      </section>
-
-      <section>
-        <h2>최소 확인</h2>
-        <ol>
-          {checks}
-        </ol>
       </section>
     </main>
   </body>

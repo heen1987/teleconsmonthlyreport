@@ -12,6 +12,11 @@ class CollectionJobError(RuntimeError):
     pass
 
 
+def _internal_headers() -> dict[str, str]:
+    secret = settings.collection_internal_api_secret or settings.collection_callback_secret
+    return {"X-Internal-Secret": secret} if secret else {}
+
+
 async def create_transcript_analysis_job(
     *,
     project_id: str,
@@ -23,6 +28,7 @@ async def create_transcript_analysis_job(
     async with httpx.AsyncClient(timeout=10) as client:
         session_response = await client.post(
             f"{base_url}/upload-sessions",
+            headers=_internal_headers(),
             json={
                 "project_id": project_id,
                 "meeting_id": meeting_id,
@@ -37,6 +43,7 @@ async def create_transcript_analysis_job(
 
         job_response = await client.post(
             f"{base_url}/analysis-jobs",
+            headers=_internal_headers(),
             json={
                 "session_id": session["session_id"],
                 "transcript_text": transcript,
@@ -54,7 +61,10 @@ async def wait_for_analysis_job(job_id: str) -> tuple[str, MeetingAnalysisResult
 
     async with httpx.AsyncClient(timeout=10) as client:
         while True:
-            response = await client.get(f"{base_url}/analysis-jobs/{job_id}")
+            response = await client.get(
+                f"{base_url}/analysis-jobs/{job_id}",
+                headers=_internal_headers(),
+            )
             response.raise_for_status()
             job = response.json()
 

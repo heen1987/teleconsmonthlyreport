@@ -23,15 +23,26 @@ run_gradle() {
   fi
 }
 
+copy_atomic() {
+  local source="$1"
+  local target="$2"
+  local tmp_target="$target.tmp.$$"
+
+  rm -f "$tmp_target"
+  cp "$source" "$tmp_target"
+  mv -f "$tmp_target" "$target"
+}
+
 copy_debug_outputs() {
   local build_dir="$1"
   local output_dir="$ROOT_DIR/android_client/build/outputs/apk/debug"
 
   mkdir -p "$output_dir"
-  cp "$build_dir/build/outputs/apk/debug/AiPmsAndroidClient-debug.apk" \
+  copy_atomic \
+    "$build_dir/build/outputs/apk/debug/AiPmsAndroidClient-debug.apk" \
     "$output_dir/AiPmsAndroidClient-debug.apk"
   if [ -f "$build_dir/build/outputs/apk/debug/output-metadata.json" ]; then
-    cp "$build_dir/build/outputs/apk/debug/output-metadata.json" \
+    copy_atomic "$build_dir/build/outputs/apk/debug/output-metadata.json" \
       "$output_dir/output-metadata.json"
   fi
 

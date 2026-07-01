@@ -2,8 +2,26 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DRIVE_ROOT="$(cd "$ROOT_DIR/.." && pwd)"
+DEFAULT_DRIVE_ROOT="$(cd "$ROOT_DIR/.." && pwd)"
+AUTHORITATIVE_DRIVE_ROOT="/Users/ppp/Library/CloudStorage/GoogleDrive-heen1987@gmail.com/내 드라이브/새싹교육_프로젝트/새싹교육_프로젝트 1"
+DRIVE_ROOT="${AIPMS_DRIVE_ROOT:-$DEFAULT_DRIVE_ROOT}"
+if [ ! -d "$DRIVE_ROOT/1. 화면설계서" ] && [ -d "$AUTHORITATIVE_DRIVE_ROOT/1. 화면설계서" ]; then
+  DRIVE_ROOT="$AUTHORITATIVE_DRIVE_ROOT"
+fi
 APK_DIR="$DRIVE_ROOT/배포_APK"
+
+python_cmd() {
+  if [ -x "$ROOT_DIR/backend/.venv-win/Scripts/python.exe" ]; then
+    "$ROOT_DIR/backend/.venv-win/Scripts/python.exe" "$@"
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 "$@"
+  elif command -v python >/dev/null 2>&1; then
+    python "$@"
+  else
+    echo "python is required for hash and metadata verification" >&2
+    exit 1
+  fi
+}
 
 require_file() {
   local file="$1"
@@ -21,6 +39,20 @@ require_text() {
     echo "missing $label in $file: $pattern" >&2
     exit 1
   fi
+}
+
+require_any_text() {
+  local file="$1"
+  local label="$2"
+  shift 2
+  local pattern
+  for pattern in "$@"; do
+    if grep -Fq "$pattern" "$file"; then
+      return 0
+    fi
+  done
+  echo "missing $label in $file: expected one of: $*" >&2
+  exit 1
 }
 
 echo "Checking Drive screen-design image set"
@@ -46,24 +78,26 @@ for marker in \
   "WEB-03 문서공간" \
   "WEB-04 검토·승인" \
   "ADMIN-01 운영관리" \
-  "APP-01~05" \
-  "새싹SW" \
-  "50명 SW개발회사" \
+  "새싹테크솔루션" \
+  "50명 AI·클라우드 B2B 솔루션 회사" \
   "연매출" \
-  "AI연구소" \
+  "50억" \
+  "개발인원 45명" \
+  "개발1본부" \
+  "개발2본부" \
   "selectedProjectDetail" \
   "프로젝트 인력·투입" \
   "이메일 미등록" \
   "계획 M/M" \
   "배정원가" \
-  "연봉 스냅샷" \
+  "원가 기준" \
   "note-benchmark-workbench" \
   "프로젝트 회의 노트" \
   "AI 메모" \
-  "수동 참석자 선택 없음" \
+  "수동선택 없음" \
   "회의명, 안건, 키워드 검색" \
   "구간 01" \
-  "프로젝트 기준 녹음 · 자동 배포" \
+  "프로젝트 회의 녹음" \
   "AI 요약" \
   "스크립트" \
   "app-flow-showcase" \
@@ -99,16 +133,18 @@ for marker in \
   "APP-05 처리상태" \
   "AI-PMS Recorder" \
   "회의 녹음" \
-  "회의명 또는 Meeting ID" \
   "recordButton = button(\"녹음 시작\")" \
   "uploadButton = button(\"업로드 및 분석 요청\")" \
   "statusCheckButton = button(\"처리상태 확인\")" \
   "actionRow(recordButton)" \
   "actionRow(uploadButton, statusCheckButton)" \
-  "contentHost.addView(homeScreen())"
+  "AppScreen.PROJECTS -> projectsScreen()" \
+  "AppScreen.RECORDING -> recordingScreen()" \
+  "AppScreen.STATUS -> statusScreen()"
 do
   require_text "$ANDROID_MAIN" "$marker" "Android marker"
 done
+require_any_text "$ANDROID_MAIN" "Android meeting title input" "회의명 또는 Meeting ID" "예: 주간 진행 회의"
 
 for forbidden in \
   "buildSideMenu" \
@@ -142,6 +178,8 @@ do
 done
 require_text "$ROOT_DIR/android_client/README.md" "Android client does not include attendee-save API contracts" "Android README recorder scope guard"
 
+bash "$ROOT_DIR/scripts/smoke_user_facing_copy_guard.sh"
+
 echo "Checking direct APK handoff"
 require_file "$APK_DIR/AI-PMS-Recorder.apk"
 require_file "$APK_DIR/AI-PMS-Recorder.sha256"
@@ -154,8 +192,7 @@ require_text "$APK_DIR/설치검증_리포트.md" "Do not add a manual attendee 
 
 (
   cd "$APK_DIR"
-  shasum -a 256 -c AI-PMS-Recorder.sha256 >/dev/null
-  python3 - <<'PY'
+  python_cmd - <<'PY'
 import hashlib
 import json
 import pathlib
@@ -163,6 +200,8 @@ import pathlib
 apk = pathlib.Path("AI-PMS-Recorder.apk")
 manifest = json.loads(pathlib.Path("apk_manifest.json").read_text())
 sha = hashlib.sha256(apk.read_bytes()).hexdigest()
+expected_sha = pathlib.Path("AI-PMS-Recorder.sha256").read_text(encoding="utf-8").split()[0]
+assert sha == expected_sha
 assert manifest["artifact_type"] == "android_apk"
 assert manifest["responsive_layout"] is True
 assert manifest["device_targets"] == ["phone", "tablet"]
@@ -173,7 +212,7 @@ assert sha in pathlib.Path("설치검증_리포트.md").read_text(encoding="utf-
 PY
 )
 
-python3 - <<'PY'
+python_cmd - <<'PY'
 import hashlib
 import json
 from pathlib import Path

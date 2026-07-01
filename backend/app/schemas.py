@@ -102,6 +102,52 @@ class AndroidUpdateManifestOut(BaseModel):
     release_notes: str = ""
 
 
+class CompanyProfileUpsert(BaseModel):
+    company_id: str = Field(min_length=1)
+    company_name: str = Field(min_length=1)
+    english_name: Optional[str] = None
+    industry: Optional[str] = None
+    founded_on: Optional[date] = None
+    headquarters: Optional[str] = None
+    ceo: Optional[str] = None
+    fiscal_year: Optional[str] = None
+    annual_revenue_krw: Optional[int] = Field(default=None, ge=0)
+    headcount: Optional[int] = Field(default=None, ge=0)
+    project_count: Optional[int] = Field(default=None, ge=0)
+    organization_summary: Optional[str] = None
+    headcount_summary: Optional[str] = None
+    note: Optional[str] = None
+    source_file: Optional[str] = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class CompanyProfileOut(CompanyProfileUpsert):
+    created_at: datetime
+    updated_at: datetime
+
+
+class CompanyContextSummaryOut(BaseModel):
+    users: int = 0
+    active_users: int = 0
+    projects: int = 0
+    project_members: int = 0
+    resource_profiles: int = 0
+    total_planned_mm: float = 0
+    total_allocated_cost_krw: float = 0
+
+
+class CompanyDivisionOut(BaseModel):
+    division_name: str
+    team_count: int = 0
+    user_count: int = 0
+
+
+class CompanyContextOut(BaseModel):
+    profile: Optional[CompanyProfileOut] = None
+    summary: CompanyContextSummaryOut
+    divisions: list[CompanyDivisionOut] = Field(default_factory=list)
+
+
 class ProjectCreate(BaseModel):
     project_id: str = Field(min_length=1)
     name: str = Field(min_length=1)
@@ -493,7 +539,6 @@ class MeetingStatusOut(BaseModel):
 
 class MeetingAttendeesReplaceRequest(BaseModel):
     attendee_user_ids: list[str] = Field(default_factory=list)
-    actor_user_id: Optional[str] = "system"
 
 
 class MeetingAttendeeOut(BaseModel):
@@ -636,7 +681,6 @@ class MeetingReviewPackage(BaseModel):
 
 class MeetingAnalysisReviewEditRequest(BaseModel):
     result: MeetingAnalysisResult
-    actor_user_id: Optional[str] = "system"
     edit_reason: Optional[str] = None
 
 

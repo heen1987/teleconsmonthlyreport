@@ -66,6 +66,7 @@ Mac mini analysis server:
 ```env
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen3:4b
+OLLAMA_FALLBACK_MODELS=qwen2.5:3b,qwen2.5:7b,qwen2:7b
 DEFAULT_CONTEXT_LIMIT=8192
 WHISPER_CPP_BIN=/opt/homebrew/bin/whisper-cli
 WHISPER_MODEL_PATH=models/whisper/ggml-small.bin

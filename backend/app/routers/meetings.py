@@ -26,6 +26,7 @@ from app.services.collection_client import (
 )
 from app.services.meeting_analysis_store import store_draft_meeting_analysis
 from app.services.auth_tokens import require_active_user
+from app.services.project_access import append_project_access_filter, ensure_project_access
 
 router = APIRouter(prefix="/meetings", tags=["meetings"], dependencies=[Depends(require_active_user)])
 
@@ -117,13 +118,18 @@ def _list_attendees(cursor, meeting_id: str) -> list[MeetingAttendeeOut]:
 
 
 @router.put("/analyses/{analysis_id}/review-edits", response_model=MeetingReviewPackage)
-def update_review_edits(analysis_id: str, payload: MeetingAnalysisReviewEditRequest):
+def update_review_edits(
+    analysis_id: str,
+    payload: MeetingAnalysisReviewEditRequest,
+    current_user: dict = Depends(require_active_user),
+):
     result_json = payload.result.model_dump(mode="json")
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
                 """
-                SELECT ma.analysis_id, ma.status, ma.result_json, ma.meeting_id, m.status AS meeting_status
+                SELECT ma.analysis_id, ma.status, ma.result_json, ma.meeting_id,
+                    m.project_id, m.status AS meeting_status
                 FROM meeting_analyses ma
                 JOIN meetings m ON m.meeting_id = ma.meeting_id
                 WHERE ma.analysis_id = %s
@@ -134,6 +140,7 @@ def update_review_edits(analysis_id: str, payload: MeetingAnalysisReviewEditRequ
             current = cursor.fetchone()
             if current is None:
                 raise HTTPException(status_code=404, detail="Meeting analysis not found")
+            ensure_project_access(cursor, current["project_id"], current_user)
             if current["status"] not in {MinutesStatus.DRAFT.value, MinutesStatus.REVIEW_REQUIRED.value}:
                 raise HTTPException(status_code=409, detail="Only draft analyses can be edited")
             if current["meeting_status"] != MeetingStatus.REVIEW_REQUIRED.value:
@@ -161,7 +168,7 @@ def update_review_edits(analysis_id: str, payload: MeetingAnalysisReviewEditRequ
                 VALUES (%s, 'edit_meeting_analysis_draft', 'meeting_analyses', %s, %s, %s)
                 """,
                 (
-                    payload.actor_user_id or "system",
+                    current_user["user_id"],
                     analysis_id,
                     Jsonb(
                         {
@@ -227,16 +234,17 @@ def _load_review_package_by_analysis_id(cursor, analysis_id: str) -> MeetingRevi
 
 
 @router.post("", response_model=MeetingOut)
-def create_meeting(payload: MeetingCreate):
+def create_meeting(payload: MeetingCreate, current_user: dict = Depends(require_active_user)):
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
+            ensure_project_access(cursor, payload.project_id, current_user)
             cursor.execute(
                 """
                 INSERT INTO meetings (meeting_id, project_id, title, created_by)
                 VALUES (%s, %s, %s, %s)
                 RETURNING meeting_id, project_id, title, created_by, status, audio_path, transcript
                 """,
-                (payload.meeting_id, payload.project_id, payload.title, payload.created_by),
+                (payload.meeting_id, payload.project_id, payload.title, current_user["user_id"]),
             )
             row = cursor.fetchone()
     return row
@@ -247,6 +255,7 @@ def list_meetings(
     project_id: str | None = None,
     status: str | None = None,
     limit: int = Query(default=20, ge=1, le=100),
+    current_user: dict = Depends(require_active_user),
 ):
     filters: list[str] = []
     params: list[object] = []
@@ -256,6 +265,7 @@ def list_meetings(
     if status:
         filters.append("m.status = %s")
         params.append(status)
+    append_project_access_filter(filters, params, current_user, "p")
     where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
 
     with get_connection() as connection:
@@ -279,7 +289,9 @@ def list_meetings(
                     SELECT analysis_id, status, model_name
                     FROM meeting_analyses
                     WHERE meeting_id = m.meeting_id
-                    ORDER BY created_at DESC
+                    ORDER BY
+                        CASE WHEN model_name LIKE 'aggregate:%%' THEN 0 ELSE 1 END,
+                        created_at DESC
                     LIMIT 1
                 ) latest ON true
                 {where_clause}
@@ -293,7 +305,7 @@ def list_meetings(
 
 
 @router.get("/{meeting_id}/status", response_model=MeetingStatusOut)
-def get_meeting_status(meeting_id: str):
+def get_meeting_status(meeting_id: str, current_user: dict = Depends(require_active_user)):
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
@@ -316,7 +328,9 @@ def get_meeting_status(meeting_id: str):
                     SELECT analysis_id, status, model_name
                     FROM meeting_analyses
                     WHERE meeting_id = m.meeting_id
-                    ORDER BY created_at DESC
+                    ORDER BY
+                        CASE WHEN model_name LIKE 'aggregate:%%' THEN 0 ELSE 1 END,
+                        created_at DESC
                     LIMIT 1
                 ) latest_analysis ON true
                 LEFT JOIN LATERAL (
@@ -333,6 +347,9 @@ def get_meeting_status(meeting_id: str):
             row = cursor.fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="Meeting not found")
+    with get_connection() as connection:
+        with connection.cursor(row_factory=dict_row) as cursor:
+            ensure_project_access(cursor, row["project_id"], current_user)
     return MeetingStatusOut(
         **row,
         progress=MEETING_STATUS_PROGRESS.get(row["status"], 0),
@@ -341,7 +358,7 @@ def get_meeting_status(meeting_id: str):
 
 
 @router.get("/{meeting_id}", response_model=MeetingOut)
-def get_meeting(meeting_id: str):
+def get_meeting(meeting_id: str, current_user: dict = Depends(require_active_user)):
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
@@ -355,24 +372,33 @@ def get_meeting(meeting_id: str):
             row = cursor.fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="Meeting not found")
+    with get_connection() as connection:
+        with connection.cursor(row_factory=dict_row) as cursor:
+            ensure_project_access(cursor, row["project_id"], current_user)
     return row
 
 
 @router.get("/{meeting_id}/attendees", response_model=list[MeetingAttendeeOut])
-def list_meeting_attendees(meeting_id: str):
+def list_meeting_attendees(meeting_id: str, current_user: dict = Depends(require_active_user)):
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
-                "SELECT meeting_id FROM meetings WHERE meeting_id = %s",
+                "SELECT meeting_id, project_id FROM meetings WHERE meeting_id = %s",
                 (meeting_id,),
             )
-            if cursor.fetchone() is None:
+            meeting = cursor.fetchone()
+            if meeting is None:
                 raise HTTPException(status_code=404, detail="Meeting not found")
+            ensure_project_access(cursor, meeting["project_id"], current_user)
             return _list_attendees(cursor, meeting_id)
 
 
 @router.put("/{meeting_id}/attendees", response_model=list[MeetingAttendeeOut])
-def replace_meeting_attendees(meeting_id: str, payload: MeetingAttendeesReplaceRequest):
+def replace_meeting_attendees(
+    meeting_id: str,
+    payload: MeetingAttendeesReplaceRequest,
+    current_user: dict = Depends(require_active_user),
+):
     attendee_user_ids = list(dict.fromkeys(payload.attendee_user_ids))
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
@@ -383,6 +409,7 @@ def replace_meeting_attendees(meeting_id: str, payload: MeetingAttendeesReplaceR
             meeting = cursor.fetchone()
             if meeting is None:
                 raise HTTPException(status_code=404, detail="Meeting not found")
+            ensure_project_access(cursor, meeting["project_id"], current_user)
 
             before_attendees = [row.model_dump(mode="json") for row in _list_attendees(cursor, meeting_id)]
 
@@ -425,7 +452,7 @@ def replace_meeting_attendees(meeting_id: str, payload: MeetingAttendeesReplaceR
                 VALUES (%s, %s, %s, %s, %s, %s)
                 """,
                 (
-                    payload.actor_user_id,
+                    current_user["user_id"],
                     "meeting_attendees_replace",
                     "meeting_attendees",
                     meeting_id,
@@ -437,7 +464,7 @@ def replace_meeting_attendees(meeting_id: str, payload: MeetingAttendeesReplaceR
 
 
 @router.get("/{meeting_id}/review-package", response_model=MeetingReviewPackage)
-def get_review_package(meeting_id: str):
+def get_review_package(meeting_id: str, current_user: dict = Depends(require_active_user)):
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
@@ -451,13 +478,16 @@ def get_review_package(meeting_id: str):
             meeting = cursor.fetchone()
             if meeting is None:
                 raise HTTPException(status_code=404, detail="Meeting not found")
+            ensure_project_access(cursor, meeting["project_id"], current_user)
 
             cursor.execute(
                 """
                 SELECT analysis_id, status, model_name, result_json
                 FROM meeting_analyses
                 WHERE meeting_id = %s
-                ORDER BY created_at DESC
+                ORDER BY
+                    CASE WHEN model_name LIKE 'aggregate:%%' THEN 0 ELSE 1 END,
+                    created_at DESC
                 LIMIT 1
                 """,
                 (meeting_id,),
@@ -466,55 +496,14 @@ def get_review_package(meeting_id: str):
             if analysis_row is None:
                 raise HTTPException(status_code=404, detail="Meeting analysis not found")
 
-    result = MeetingAnalysisResult.model_validate(analysis_row["result_json"])
-    analysis_status = analysis_row["status"]
-    meeting_status = meeting["status"]
-
-    counts = ReviewCounts(
-        transcript_segments=len(result.transcript_segments),
-        decisions=len(result.decisions),
-        action_items=len(result.action_items),
-        risks=len(result.risks),
-        required_resources=len(result.required_resources),
-    )
-    is_draft = analysis_status in {
-        MinutesStatus.DRAFT.value,
-        MinutesStatus.REVIEW_REQUIRED.value,
-    }
-    is_meeting_reviewable = meeting_status == MeetingStatus.REVIEW_REQUIRED.value
-    capabilities = ReviewCapabilities(
-        can_edit=is_draft,
-        can_approve=is_draft and is_meeting_reviewable,
-        can_reject=is_draft and is_meeting_reviewable,
-        can_distribute=analysis_status == MinutesStatus.APPROVED.value
-        and meeting_status == MeetingStatus.APPROVED.value,
-    )
-
-    warnings: list[str] = []
-    if not result.requires_human_approval:
-        warnings.append("analysis_result_requires_human_approval_missing")
-    if counts.transcript_segments == 0:
-        warnings.append("transcript_segments_empty")
-    if analysis_status == MinutesStatus.APPROVED.value and meeting_status not in {
-        MeetingStatus.APPROVED.value,
-        MeetingStatus.DISTRIBUTED.value,
-    }:
-        warnings.append("approved_analysis_meeting_status_mismatch")
-
-    return MeetingReviewPackage(
-        meeting=MeetingOut.model_validate(meeting),
-        analysis_id=analysis_row["analysis_id"],
-        analysis_status=analysis_status,
-        model_name=analysis_row["model_name"],
-        result=result,
-        counts=counts,
-        capabilities=capabilities,
-        warnings=warnings,
-    )
+    return _review_package_from_rows(meeting, analysis_row)
 
 
 @router.post("/analyze", response_model=MeetingAnalysisOut)
-async def analyze_meeting(payload: MeetingAnalyzeRequest):
+async def analyze_meeting(
+    payload: MeetingAnalyzeRequest,
+    current_user: dict = Depends(require_active_user),
+):
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
@@ -528,6 +517,7 @@ async def analyze_meeting(payload: MeetingAnalyzeRequest):
             meeting = cursor.fetchone()
             if meeting is None:
                 raise HTTPException(status_code=404, detail="Meeting not found")
+            ensure_project_access(cursor, meeting["project_id"], current_user)
             cursor.execute(
                 """
                 UPDATE meetings
@@ -542,6 +532,7 @@ async def analyze_meeting(payload: MeetingAnalyzeRequest):
             project_id=meeting["project_id"],
             meeting_id=payload.meeting_id,
             transcript=payload.transcript,
+            requested_by=current_user["user_id"],
         )
         with get_connection() as connection:
             with connection.cursor() as cursor:

@@ -33,3 +33,4 @@ Forbidden autonomous LLM tasks:
 - approval authority must be confirmed
 - final posting requires human approval
 - every state change writes an audit log
+

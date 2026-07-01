@@ -11,13 +11,64 @@ extract_url() {
     echo "Missing tunnel log: $log_file" >&2
     return 1
   fi
-  grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' "$log_file" | tail -1
+  grep -aEo 'https://[a-z0-9-]+\.trycloudflare\.com' "$log_file" | tail -1
 }
 
-PLATFORM_URL="${AIPMS_PLATFORM_BASE_URL:-${AIPMS_PUBLIC_PLATFORM_URL:-$(extract_url platform)}}"
-COLLECTION_URL="${AIPMS_COLLECTION_BASE_URL:-${AIPMS_PUBLIC_COLLECTION_URL:-$(extract_url collection)}}"
 ANDROID_CLEAN_BUILD="${ANDROID_CLEAN_BUILD:-1}"
 AIPMS_ANDROID_TEMP_BUILD="${AIPMS_ANDROID_TEMP_BUILD:-1}"
+
+PLATFORM_URL="${AIPMS_PLATFORM_BASE_URL:-${AIPMS_PUBLIC_PLATFORM_URL:-${AIPMS_PLATFORM_API_URL:-}}}"
+COLLECTION_URL="${AIPMS_COLLECTION_BASE_URL:-${AIPMS_PUBLIC_COLLECTION_URL:-}}"
+if [ -z "$COLLECTION_URL" ]; then
+  COLLECTION_URL="$(extract_url collection || true)"
+fi
+
+require_platform_server_url() {
+  if [ -z "$PLATFORM_URL" ]; then
+    cat >&2 <<'EOF'
+Platform server URL is required for public Android builds.
+
+Set one of:
+  AIPMS_PLATFORM_BASE_URL=https://<platform-server-url>
+  AIPMS_PUBLIC_PLATFORM_URL=https://<platform-server-url>
+  AIPMS_PLATFORM_API_URL=https://<platform-server-url>
+
+Do not build the public APK against a LAN IP or this PC.
+EOF
+    exit 2
+  fi
+
+  case "$PLATFORM_URL" in
+    http://127.*|https://127.*|http://localhost*|https://localhost*|\
+    http://10.*|https://10.*|http://192.168.*|https://192.168.*|\
+    http://172.1[6-9].*|https://172.1[6-9].*|http://172.2[0-9].*|https://172.2[0-9].*|\
+    http://172.3[0-1].*|https://172.3[0-1].*)
+      cat >&2 <<EOF
+Platform URL must point to the Platform server, not a local/LAN IP:
+  current: $PLATFORM_URL
+EOF
+      exit 2
+      ;;
+  esac
+}
+
+require_collection_url() {
+  if [ -z "$COLLECTION_URL" ]; then
+    cat >&2 <<'EOF'
+Collection public URL is required for public Android builds.
+
+Start the Mac mini Collection/Analysis tunnel first:
+  bash scripts/run_collection_analysis_public_tunnel.sh
+
+Or set:
+  AIPMS_PUBLIC_COLLECTION_URL=https://<collection-public-url>
+EOF
+    exit 2
+  fi
+}
+
+require_platform_server_url
+require_collection_url
 
 export JAVA_HOME="${JAVA_HOME:-/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home}"
 export ANDROID_HOME="${ANDROID_HOME:-/opt/homebrew/share/android-commandlinetools}"
@@ -52,6 +103,16 @@ run_gradle() {
   fi
 }
 
+copy_atomic() {
+  local source="$1"
+  local target="$2"
+  local tmp_target="$target.tmp.$$"
+
+  rm -f "$tmp_target"
+  cp "$source" "$tmp_target"
+  mv -f "$tmp_target" "$target"
+}
+
 if [ "$AIPMS_ANDROID_TEMP_BUILD" = "1" ]; then
   BUILD_DIR="${AIPMS_ANDROID_TEMP_DIR:-$(mktemp -d /tmp/ai_pms_android_public.XXXXXX)}"
   mkdir -p "$BUILD_DIR"
@@ -66,19 +127,19 @@ cd "$BUILD_DIR"
 run_gradle "${gradle_tasks[@]}"
 
 mkdir -p "$ROOT_DIR/android_client/build/outputs/apk/debug"
-cp "$BUILD_DIR/build/outputs/apk/debug/AiPmsAndroidClient-debug.apk" \
+copy_atomic "$BUILD_DIR/build/outputs/apk/debug/AiPmsAndroidClient-debug.apk" \
   "$ROOT_DIR/android_client/build/outputs/apk/debug/AiPmsAndroidClient-debug.apk"
 if [ -f "$BUILD_DIR/build/outputs/apk/debug/output-metadata.json" ]; then
-  cp "$BUILD_DIR/build/outputs/apk/debug/output-metadata.json" \
+  copy_atomic "$BUILD_DIR/build/outputs/apk/debug/output-metadata.json" \
     "$ROOT_DIR/android_client/build/outputs/apk/debug/output-metadata.json"
 fi
 
 mkdir -p "$ROOT_DIR/artifacts/apk"
-cp "$BUILD_DIR/build/outputs/apk/debug/AiPmsAndroidClient-debug.apk" \
+copy_atomic "$BUILD_DIR/build/outputs/apk/debug/AiPmsAndroidClient-debug.apk" \
   "$ROOT_DIR/artifacts/apk/AiPmsAndroidClient-responsive-public-debug.apk"
-cp "$BUILD_DIR/build/outputs/apk/debug/AiPmsAndroidClient-debug.apk" \
+copy_atomic "$BUILD_DIR/build/outputs/apk/debug/AiPmsAndroidClient-debug.apk" \
   "$ROOT_DIR/artifacts/apk/AiPmsAndroidClient-public-debug.apk"
-cp "$BUILD_DIR/build/outputs/apk/debug/AiPmsAndroidClient-debug.apk" \
+copy_atomic "$BUILD_DIR/build/outputs/apk/debug/AiPmsAndroidClient-debug.apk" \
   "$ROOT_DIR/artifacts/apk/AI-PMS-Recorder.apk"
 
 if [ -x "$ROOT_DIR/scripts/publish_android_apk_download.sh" ]; then

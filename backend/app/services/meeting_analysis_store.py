@@ -9,6 +9,8 @@ from app.db.session import get_connection
 from app.domain.statuses import MeetingStatus
 from app.schemas import MeetingAnalysisResult
 
+AGGREGATE_MODEL_PREFIX = "aggregate:"
+
 
 class MeetingAnalysisStoreError(RuntimeError):
     pass
@@ -20,6 +22,137 @@ class MeetingAnalysisProjectMismatchError(MeetingAnalysisStoreError):
 
 class MeetingAnalysisConflictError(MeetingAnalysisStoreError):
     pass
+
+
+def _merge_raw_analysis_results(rows: list[dict]) -> MeetingAnalysisResult:
+    summaries: list[str] = []
+    transcript_segments = []
+    decisions = []
+    action_items = []
+    risks = []
+    required_resources = []
+    language = "ko"
+
+    for index, row in enumerate(rows, start=1):
+        result = MeetingAnalysisResult.model_validate(row["result_json"])
+        language = result.language or language
+        summaries.append(f"[segment {index}] {result.summary}")
+        source_key = row.get("source_collection_job_id") or row["analysis_id"]
+        for segment in result.transcript_segments:
+            transcript_segments.append(
+                segment.model_copy(
+                    update={"segment_id": f"{index}:{source_key}:{segment.segment_id}"}
+                )
+            )
+        decisions.extend(result.decisions)
+        action_items.extend(result.action_items)
+        risks.extend(result.risks)
+        required_resources.extend(result.required_resources)
+
+    return MeetingAnalysisResult(
+        schema_version="analysis.v1",
+        language=language,
+        summary="\n".join(summaries),
+        transcript_segments=transcript_segments,
+        decisions=decisions,
+        action_items=action_items,
+        risks=risks,
+        required_resources=required_resources,
+        requires_human_approval=True,
+    )
+
+
+def _upsert_meeting_aggregate_analysis(cursor, meeting_id: str) -> tuple[str, bool, str] | None:
+    cursor.execute(
+        """
+        SELECT analysis_id, source_collection_job_id, model_name, result_json
+        FROM meeting_analyses
+        WHERE meeting_id = %s
+          AND status IN (%s, %s)
+          AND model_name NOT LIKE %s
+        ORDER BY created_at ASC
+        """,
+        (
+            meeting_id,
+            "draft",
+            "review_required",
+            f"{AGGREGATE_MODEL_PREFIX}%",
+        ),
+    )
+    raw_rows = cursor.fetchall()
+    if len(raw_rows) <= 1:
+        return None
+
+    merged = _merge_raw_analysis_results(raw_rows)
+    model_name = f"{AGGREGATE_MODEL_PREFIX}segments"
+    cursor.execute(
+        """
+        SELECT analysis_id
+        FROM meeting_analyses
+        WHERE meeting_id = %s
+          AND status IN (%s, %s)
+          AND model_name LIKE %s
+        ORDER BY created_at DESC
+        LIMIT 1
+        FOR UPDATE
+        """,
+        (
+            meeting_id,
+            "draft",
+            "review_required",
+            f"{AGGREGATE_MODEL_PREFIX}%",
+        ),
+    )
+    existing = cursor.fetchone()
+    if existing:
+        cursor.execute(
+            """
+            UPDATE meeting_analyses
+            SET model_name = %s,
+                summary = %s,
+                result_json = %s,
+                status = %s,
+                created_at = now()
+            WHERE analysis_id = %s
+            RETURNING analysis_id, status
+            """,
+            (
+                model_name,
+                merged.summary,
+                Jsonb(merged.model_dump(mode="json")),
+                "draft",
+                existing["analysis_id"],
+            ),
+        )
+        updated = cursor.fetchone()
+        return updated["analysis_id"], False, updated["status"]
+
+    aggregate_id = f"ANL-{uuid.uuid4().hex[:12]}"
+    cursor.execute(
+        """
+        INSERT INTO meeting_analyses
+            (
+                analysis_id,
+                meeting_id,
+                source_collection_job_id,
+                source_asset_id,
+                model_name,
+                summary,
+                result_json
+            )
+        VALUES (%s, %s, NULL, NULL, %s, %s, %s)
+        RETURNING analysis_id, status
+        """,
+        (
+            aggregate_id,
+            meeting_id,
+            model_name,
+            merged.summary,
+            Jsonb(merged.model_dump(mode="json")),
+        ),
+    )
+    inserted = cursor.fetchone()
+    return inserted["analysis_id"], True, inserted["status"]
 
 
 def store_draft_meeting_analysis(
@@ -168,5 +301,10 @@ def store_draft_meeting_analysis(
                     ),
                 ),
             )
+            aggregate = _upsert_meeting_aggregate_analysis(cursor, meeting_id)
+            if aggregate is not None:
+                analysis_id, _aggregate_created, analysis_status = aggregate
+            else:
+                analysis_status = "draft"
 
-    return analysis_id, True, "draft"
+    return analysis_id, True, analysis_status

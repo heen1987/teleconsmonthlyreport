@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -19,464 +18,238 @@ from app.domain.statuses import AccountStatus
 from app.services.passwords import hash_password
 
 
-COMPANY_ID = "SSK-SW"
-COMPANY_NAME = "새싹SW"
-ANNUAL_REVENUE_KRW = 5_000_000_000
+DATASET_PATH = ROOT_DIR / "scripts" / "data" / "saessak_company_dataset.json"
 INITIAL_PASSWORD = "1234"
 OUTPUT_PATH = ROOT_DIR / "runtime" / "demo_company" / "latest_plan.json"
+VALID_USER_ROLES = {"admin", "pm", "pl", "member", "finance", "resource_manager", "viewer"}
 
 
-@dataclass(frozen=True)
-class DivisionSpec:
-    code: str
-    name: str
-    kind: str
-    description: str
+def load_dataset(path: Path) -> dict[str, Any]:
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
-MANAGEMENT_DIVISION = DivisionSpec(
-    code="MGT",
-    name="경영본부",
-    kind="management",
-    description="대표이사와 경영관리팀 4명으로 구성된 경영/관리 조직",
-)
-
-DEVELOPMENT_DIVISIONS = [
-    DivisionSpec(
-        code="RND",
-        name="AI연구소",
-        kind="development",
-        description="회의 음성, STT, LLM 분석, 지식화 연구 수행조직",
-    ),
-    DivisionSpec(
-        code="DEV1",
-        name="플랫폼개발본부",
-        kind="development",
-        description="PMS, Platform API, 데이터/운영 백엔드 수행조직",
-    ),
-    DivisionSpec(
-        code="DEV2",
-        name="서비스개발본부",
-        kind="development",
-        description="웹, 앱, 외부접속, UX/API 연동 수행조직",
-    ),
-]
-
-DEV_PROJECT_NAMES = {
-    "RND": [
-        "AI 회의록 분석 엔진 고도화",
-        "경량 LLM 운영 파이프라인",
-        "음성 STT 품질 평가 자동화",
-        "프로젝트 지식그래프 PoC",
-        "회의 요약 신뢰도 검증",
-    ],
-    "DEV1": [
-        "PMS 플랫폼 API 고도화",
-        "인증/권한 및 감사로그 구축",
-        "프로젝트 리소스 관리 모듈",
-        "운영 큐 및 재처리 자동화",
-        "ERP 비용 연계 인터페이스",
-    ],
-    "DEV2": [
-        "Android 회의 녹음 앱",
-        "웹 리뷰 콘솔 시각화",
-        "태블릿/휴대폰 반응형 UX",
-        "외부 공개 검토 패키지",
-        "회의 결과 자동 배포 UX",
-    ],
-}
-
-MANAGEMENT_PEOPLE = [
-    ("0001", "김도현", "대표이사실", "이사", "대표이사", "admin"),
-    ("0002", "박서연", "경영관리팀", "책임", "팀장", "admin"),
-    ("0003", "이민재", "경영관리팀", "선임", "재무담당", "finance"),
-    ("0004", "최유진", "경영관리팀", "사원", "인사총무", "member"),
-    ("0005", "정하늘", "경영관리팀", "사원", "경영지원", "finance"),
-]
-
-DEV_PEOPLE_TEMPLATE = [
-    ("01", "이사", "본부장", "pm"),
-    ("02", "수석", "실장", "pm"),
-    ("03", "수석", "실장", "resource_manager"),
-    ("04", "책임", "팀장", "pm"),
-    ("05", "책임", "팀장", "pm"),
-    ("06", "책임", "팀장", "pl"),
-    ("07", "선임", "개발자", "pl"),
-    ("08", "선임", "개발자", "pl"),
-    ("09", "선임", "개발자", "pl"),
-    ("10", "선임", "개발자", "pl"),
-    ("11", "사원", "개발자", "member"),
-    ("12", "사원", "개발자", "member"),
-    ("13", "사원", "개발자", "member"),
-    ("14", "사원", "개발자", "member"),
-    ("15", "사원", "개발자", "member"),
-]
-
-DEV_NAMES_BY_DIVISION = {
-    "RND": [
-        "강태준",
-        "송하린",
-        "유민석",
-        "문지아",
-        "나현우",
-        "오서윤",
-        "정우빈",
-        "하은별",
-        "류시온",
-        "권다빈",
-        "임유찬",
-        "서예나",
-        "백지후",
-        "최라온",
-        "한도겸",
-    ],
-    "DEV1": [
-        "조민규",
-        "배지윤",
-        "윤서준",
-        "김하람",
-        "차도윤",
-        "신예린",
-        "박건우",
-        "이소율",
-        "홍지호",
-        "남가은",
-        "전시우",
-        "안유나",
-        "구태양",
-        "장서아",
-        "노하준",
-    ],
-    "DEV2": [
-        "이도현",
-        "천수빈",
-        "마준서",
-        "성아린",
-        "도윤재",
-        "문채린",
-        "서강우",
-        "진하율",
-        "황민재",
-        "고예준",
-        "라지민",
-        "우서현",
-        "표준영",
-        "민가온",
-        "한세아",
-    ],
-}
-
-DIVISION_NAME_PREFIX = {
-    "RND": "연구",
-    "DEV1": "플랫폼",
-    "DEV2": "서비스",
-}
-
-SALARY_BY_POSITION = {
-    "사원": 42_000_000,
-    "선임": 55_000_000,
-    "책임": 70_000_000,
-    "수석": 88_000_000,
-    "이사": 118_000_000,
-}
-
-ROLE_ALLOCATION = {
-    "project_lead": 60.0,
-    "technical_lead": 80.0,
-    "developer": 100.0,
-}
+def revenue_label(annual_revenue_krw: int) -> str:
+    if annual_revenue_krw % 100_000_000 == 0:
+        return f"{annual_revenue_krw // 100_000_000}억 원"
+    return f"{annual_revenue_krw:,}원"
 
 
-def employee_no(code: str, seq: str) -> str:
-    return f"{COMPANY_ID}-{code}-{seq}"
+def normalized_project_role(raw_role: str | None) -> str:
+    role = (raw_role or "").strip()
+    if role == "PM":
+        return "pm"
+    if "Sponsor" in role:
+        return "sponsor"
+    if "PL" in role:
+        return "pl"
+    if "QA" in role:
+        return "qa"
+    if "DevOps" in role:
+        return "devops"
+    if "개발" in role:
+        return "developer"
+    if "관리" in role:
+        return "manager"
+    if "지원" in role:
+        return "support"
+    return "member"
 
 
-def user_id(code: str, seq: str) -> str:
-    return f"USR-{COMPANY_ID}-{code}-{seq}"
-
-
-def resource_id(code: str, seq: str) -> str:
-    return f"RES-{COMPANY_ID}-{code}-{seq}"
-
-
-def annual_salary_krw(position: str, duty: str, *, is_developer: bool, seq: str) -> int:
-    if duty == "대표이사":
-        return 180_000_000
-
-    base_salary = SALARY_BY_POSITION[position]
-    duty_allowance = {
-        "본부장": 12_000_000,
-        "연구소장": 12_000_000,
-        "실장": 8_000_000,
-        "팀장": 5_000_000,
-        "재무담당": 2_000_000,
-    }.get(duty, 0)
-    developer_allowance = 3_000_000 if is_developer else 0
-    deterministic_adjustment = (int(seq[-2:]) % 3) * 1_000_000
-    return base_salary + duty_allowance + developer_allowance + deterministic_adjustment
-
-
-def planned_mm_for(project_role: str) -> float:
-    return round(ROLE_ALLOCATION[project_role] / 100, 2)
-
-
-def allocated_cost_krw(annual_salary: int, planned_mm: float) -> int:
-    return round(annual_salary * planned_mm / 12)
-
-
-def build_user(
-    *,
-    division: DivisionSpec,
-    seq: str,
-    name: str,
-    team_name: str,
-    position: str,
-    duty: str,
-    role: str,
-    is_developer: bool,
-) -> dict[str, Any]:
-    email_local = employee_no(division.code, seq).lower().replace("-", ".")
-    salary = annual_salary_krw(position, duty, is_developer=is_developer, seq=seq)
-    metadata = {
-        "company_id": COMPANY_ID,
-        "company_name": COMPANY_NAME,
-        "annual_revenue_krw": ANNUAL_REVENUE_KRW,
-        "annual_salary_krw": salary,
-        "division_code": division.code,
-        "division_name": division.name,
-        "division_kind": division.kind,
-        "team_name": team_name,
-        "position": position,
-        "duty": duty,
-        "is_developer": is_developer,
-        "salary_policy": "demo_position_based_salary",
-        "position_ladder": ["사원", "선임", "책임", "수석", "이사"],
-        "duty_ladder": {
-            "팀장": "책임",
-            "실장": "수석",
-            "본부장": "이사",
-        },
-    }
-    return {
-        "user_id": user_id(division.code, seq),
-        "employee_no": employee_no(division.code, seq),
-        "name": name,
-        "email": f"{email_local}@saessak-sw.local",
-        "role": role,
-        "status": AccountStatus.ACTIVE.value,
-        "division_code": division.code,
-        "division_name": division.name,
-        "team_name": team_name,
-        "position": position,
-        "duty": duty,
-        "is_developer": is_developer,
-        "annual_salary_krw": salary,
-        "resource_id": resource_id(division.code, seq),
-        "metadata": metadata,
-    }
-
-
-def build_management_users() -> list[dict[str, Any]]:
-    return [
-        build_user(
-            division=MANAGEMENT_DIVISION,
-            seq=seq,
-            name=name,
-            team_name=team_name,
-            position=position,
-            duty=duty,
-            role=role,
-            is_developer=False,
-        )
-        for seq, name, team_name, position, duty, role in MANAGEMENT_PEOPLE
-    ]
-
-
-def build_development_users(division: DivisionSpec) -> list[dict[str, Any]]:
-    prefix = DIVISION_NAME_PREFIX[division.code]
+def build_users(dataset: dict[str, Any]) -> list[dict[str, Any]]:
+    company = dataset["company"]
     users: list[dict[str, Any]] = []
-    names = DEV_NAMES_BY_DIVISION[division.code]
-    for seq, position, duty, role in DEV_PEOPLE_TEMPLATE:
-        if duty == "본부장" and division.code == "RND":
-            duty_label = "연구소장"
-        else:
-            duty_label = duty
-        team_name = f"{prefix}{team_for_developer(seq)}"
-        name = names[int(seq) - 1]
+    for employee in dataset["employees"]:
+        account_role = employee.get("account_role") or "member"
+        if account_role not in VALID_USER_ROLES:
+            account_role = "member"
+        metadata = {
+            "company_id": company["company_id"],
+            "company_name": company["company_name"],
+            "english_name": company.get("english_name"),
+            "annual_revenue_krw": company["annual_revenue_krw"],
+            "division_name": employee["division"],
+            "team_name": employee["team"],
+            "position": employee["position"],
+            "duty": employee["duty"],
+            "login_id": employee.get("login_id"),
+            "auth_group": employee.get("auth_group"),
+            "account_status_text": employee.get("account_status"),
+            "login_method": employee.get("login_method"),
+            "account_note": employee.get("account_note"),
+            "employment_type": employee.get("employment_type"),
+            "hire_date": employee.get("hire_date"),
+            "phone": employee.get("phone"),
+            "work_location": employee.get("location"),
+            "skill_tags": employee.get("skill_tags", []),
+            "primary_project": employee.get("primary_project"),
+            "total_allocation_rate": employee.get("total_allocation_rate"),
+            "annual_salary_krw": employee["annual_salary_krw"],
+            "status_text": employee.get("status_text"),
+            "source_file": dataset["source"]["file_name"],
+        }
         users.append(
-            build_user(
-                division=division,
-                seq=seq,
-                name=name,
-                team_name=team_name,
-                position=position,
-                duty=duty_label,
-                role=role,
-                is_developer=True,
-            )
+            {
+                "user_id": employee["user_id"],
+                "employee_no": employee["employee_no"],
+                "login_id": employee.get("login_id") or employee["employee_no"],
+                "initial_password": str(employee.get("initial_password") or INITIAL_PASSWORD),
+                "name": employee["name"],
+                "email": employee.get("email"),
+                "role": account_role,
+                "status": AccountStatus.ACTIVE.value,
+                "division_name": employee["division"],
+                "team_name": employee["team"],
+                "position": employee["position"],
+                "duty": employee["duty"],
+                "auth_group": employee.get("auth_group"),
+                "account_status_text": employee.get("account_status"),
+                "login_method": employee.get("login_method"),
+                "account_note": employee.get("account_note"),
+                "annual_salary_krw": employee["annual_salary_krw"],
+                "resource_id": employee["resource_id"],
+                "metadata": metadata,
+            }
         )
     return users
 
 
-def team_for_developer(seq: str) -> str:
-    seq_no = int(seq)
-    if seq_no <= 3:
-        return "본부"
-    if seq_no <= 6:
-        return f"{seq_no - 3}팀"
-    if seq_no <= 10:
-        return f"{((seq_no - 7) % 3) + 1}팀"
-    return f"{((seq_no - 11) % 3) + 1}팀"
-
-
-def project_member_groups(users: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
-    return [
-        [users[0], users[6], users[10]],
-        [users[1], users[3], users[11]],
-        [users[2], users[4], users[12]],
-        [users[5], users[7], users[13]],
-        [users[8], users[9], users[14]],
-    ]
-
-
-def project_role_for(index: int) -> str:
-    return ["project_lead", "technical_lead", "developer"][index]
-
-
-def build_projects(dev_users_by_division: dict[str, list[dict[str, Any]]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def build_projects(dataset: dict[str, Any]) -> list[dict[str, Any]]:
     projects: list[dict[str, Any]] = []
+    for project in dataset["projects"]:
+        tags = ", ".join(project.get("technology_tags") or [])
+        description_parts = [
+            project.get("description"),
+            f"담당조직: {project.get('division')} / {project.get('team')}",
+            f"우선순위: {project.get('priority_text')}",
+            f"매출배분: {int(project.get('revenue_allocation_krw') or 0):,}원",
+        ]
+        if tags:
+            description_parts.append(f"주요기술: {tags}")
+        projects.append(
+            {
+                "project_id": project["project_id"],
+                "name": project["project_name"],
+                "status": project.get("status_code") or "active",
+                "pm_user_id": project["pm_user_id"],
+                "owning_division_name": project.get("division"),
+                "owning_team_name": project.get("team"),
+                "description": " | ".join(part for part in description_parts if part),
+                "metadata": {
+                    "status_text": project.get("status_text"),
+                    "priority_text": project.get("priority_text"),
+                    "priority_code": project.get("priority_code"),
+                    "start_date": project.get("start_date"),
+                    "end_date": project.get("end_date"),
+                    "duration_months": project.get("duration_months"),
+                    "registered_employee_count": project.get("registered_employee_count"),
+                    "revenue_allocation_krw": project.get("revenue_allocation_krw"),
+                    "revenue_share": project.get("revenue_share"),
+                    "total_planned_mm": project.get("total_planned_mm"),
+                    "labor_cost_krw": project.get("labor_cost_krw"),
+                    "average_unit_cost_krw_per_mm": project.get("average_unit_cost_krw_per_mm"),
+                    "revenue_minus_labor_cost_krw": project.get("revenue_minus_labor_cost_krw"),
+                    "labor_cost_ratio": project.get("labor_cost_ratio"),
+                    "single_allocation_validation": project.get("single_allocation_validation"),
+                    "technology_tags": project.get("technology_tags", []),
+                },
+            }
+        )
+    return projects
+
+
+def build_memberships(dataset: dict[str, Any]) -> list[dict[str, Any]]:
     memberships: list[dict[str, Any]] = []
-    project_seq = 1
-    for division in DEVELOPMENT_DIVISIONS:
-        groups = project_member_groups(dev_users_by_division[division.code])
-        for local_index, project_name in enumerate(DEV_PROJECT_NAMES[division.code], start=1):
-            project_id = f"{COMPANY_ID}-PJT-{project_seq:02d}"
-            group = groups[local_index - 1]
-            projects.append(
-                {
-                    "project_id": project_id,
-                    "name": project_name,
-                    "status": "active",
-                    "owning_division_code": division.code,
-                    "owning_division_name": division.name,
-                    "pm_user_id": group[0]["user_id"],
-                }
-            )
-            for member_index, member in enumerate(group):
-                memberships.append(
-                    {
-                        "project_id": project_id,
-                        "user_id": member["user_id"],
-                        "employee_no": member["employee_no"],
-                        "name": member["name"],
-                        "project_role": project_role_for(member_index),
-                        "allocation_percent": ROLE_ALLOCATION[project_role_for(member_index)],
-                        "planned_mm": planned_mm_for(project_role_for(member_index)),
-                        "annual_salary_krw": member["annual_salary_krw"],
-                        "allocated_cost_krw": allocated_cost_krw(
-                            member["annual_salary_krw"],
-                            planned_mm_for(project_role_for(member_index)),
-                        ),
-                        "staffing_note": f"{project_name} {project_role_for(member_index)} 배정",
-                        "division_code": division.code,
-                    }
-                )
-            project_seq += 1
-    return projects, memberships
+    for assignment in dataset["assignments"]:
+        role = normalized_project_role(assignment.get("assignment_role"))
+        memberships.append(
+            {
+                "assignment_id": assignment["assignment_id"],
+                "project_id": assignment["project_id"],
+                "user_id": assignment["user_id"],
+                "employee_no": assignment["employee_no"],
+                "name": assignment["name"],
+                "project_role": role,
+                "allocation_percent": assignment["allocation_percent"],
+                "planned_mm": assignment["planned_mm"],
+                "annual_salary_krw": assignment["annual_salary_krw"],
+                "allocated_cost_krw": assignment["allocated_cost_krw"],
+                "staffing_note": (
+                    f"{assignment.get('assignment_role')} / "
+                    f"{assignment.get('start_date')}~{assignment.get('end_date')} / "
+                    f"{assignment.get('assignment_status')} / "
+                    f"{assignment.get('note')}"
+                ),
+                "metadata": {
+                    "assignment_role": assignment.get("assignment_role"),
+                    "assignment_status": assignment.get("assignment_status"),
+                    "division": assignment.get("division"),
+                    "team": assignment.get("team"),
+                    "position": assignment.get("position"),
+                    "unit_cost_krw_per_mm": assignment.get("unit_cost_krw_per_mm"),
+                    "source_note": assignment.get("note"),
+                    "start_date": assignment.get("start_date"),
+                    "end_date": assignment.get("end_date"),
+                },
+            }
+        )
+    return memberships
 
 
-def summarize(users: list[dict[str, Any]], projects: list[dict[str, Any]], memberships: list[dict[str, Any]]) -> dict[str, Any]:
-    divisions: dict[str, dict[str, Any]] = {}
+def summarize(
+    dataset: dict[str, Any],
+    users: list[dict[str, Any]],
+    projects: list[dict[str, Any]],
+    memberships: list[dict[str, Any]],
+) -> dict[str, Any]:
     positions: dict[str, int] = {}
     duties: dict[str, int] = {}
-    for user in users:
-        division = divisions.setdefault(
-            user["division_code"],
-            {
-                "division_name": user["division_name"],
-                "headcount": 0,
-                "developer_headcount": 0,
-            },
-        )
-        division["headcount"] += 1
-        if user["is_developer"]:
-            division["developer_headcount"] += 1
-        positions[user["position"]] = positions.get(user["position"], 0) + 1
-        duties[user["duty"]] = duties.get(user["duty"], 0) + 1
-
     project_sizes: dict[str, int] = {}
     project_planned_mm: dict[str, float] = {}
     project_allocation_percent: dict[str, float] = {}
+    for user in users:
+        positions[user["position"]] = positions.get(user["position"], 0) + 1
+        duties[user["duty"]] = duties.get(user["duty"], 0) + 1
     for membership in memberships:
-        project_sizes[membership["project_id"]] = project_sizes.get(membership["project_id"], 0) + 1
-        project_planned_mm[membership["project_id"]] = round(
-            project_planned_mm.get(membership["project_id"], 0) + membership["planned_mm"],
+        project_id = membership["project_id"]
+        project_sizes[project_id] = project_sizes.get(project_id, 0) + 1
+        project_planned_mm[project_id] = round(project_planned_mm.get(project_id, 0) + membership["planned_mm"], 2)
+        project_allocation_percent[project_id] = round(
+            project_allocation_percent.get(project_id, 0) + membership["allocation_percent"],
             2,
         )
-        project_allocation_percent[membership["project_id"]] = round(
-            project_allocation_percent.get(membership["project_id"], 0) + membership["allocation_percent"],
-            2,
-        )
-
-    return {
-        "headcount": len(users),
-        "developer_headcount": sum(1 for user in users if user["is_developer"]),
-        "management_headcount": sum(1 for user in users if not user["is_developer"]),
-        "project_count": len(projects),
-        "project_member_count": len(memberships),
-        "division_count": len(divisions),
-        "divisions": divisions,
-        "positions": positions,
-        "duties": duties,
-        "project_sizes": project_sizes,
-        "project_planned_mm": project_planned_mm,
-        "project_allocation_percent": project_allocation_percent,
-        "total_annual_salary_krw": sum(user["annual_salary_krw"] for user in users),
-        "developer_annual_salary_krw": sum(user["annual_salary_krw"] for user in users if user["is_developer"]),
-    }
+    summary = dict(dataset["summary"])
+    summary.update(
+        {
+            "positions": positions,
+            "duties": duties,
+            "project_sizes": project_sizes,
+            "project_planned_mm": project_planned_mm,
+            "project_allocation_percent": project_allocation_percent,
+            "total_annual_salary_krw": sum(user["annual_salary_krw"] for user in users),
+            "account_count": len(users),
+            "login_id_match_count": sum(1 for user in users if user["login_id"] == user["employee_no"]),
+            "initial_password_1234_count": sum(1 for user in users if user["initial_password"] == INITIAL_PASSWORD),
+        }
+    )
+    return summary
 
 
-def build_company_plan() -> dict[str, Any]:
-    management_users = build_management_users()
-    dev_users_by_division = {
-        division.code: build_development_users(division)
-        for division in DEVELOPMENT_DIVISIONS
-    }
-    dev_users = [user for users in dev_users_by_division.values() for user in users]
-    users = management_users + dev_users
-    projects, memberships = build_projects(dev_users_by_division)
-    divisions = [MANAGEMENT_DIVISION, *DEVELOPMENT_DIVISIONS]
+def build_company_plan(dataset_path: Path = DATASET_PATH) -> dict[str, Any]:
+    dataset = load_dataset(dataset_path)
+    users = build_users(dataset)
+    projects = build_projects(dataset)
+    memberships = build_memberships(dataset)
+    company = dict(dataset["company"])
+    company["annual_revenue_label"] = revenue_label(company["annual_revenue_krw"])
     plan = {
-        "company": {
-            "company_id": COMPANY_ID,
-            "company_name": COMPANY_NAME,
-            "industry": "SW 개발",
-            "annual_revenue_krw": ANNUAL_REVENUE_KRW,
-            "annual_revenue_label": "50억 원",
-            "headcount": 50,
-            "developer_headcount": 45,
-            "project_count": 15,
-            "position_ladder": ["사원", "선임", "책임", "수석", "이사"],
-            "duty_mapping": {
-                "팀장": "책임",
-                "실장": "수석",
-                "본부장": "이사",
-            },
-        },
-        "divisions": [
-            {
-                "division_code": division.code,
-                "division_name": division.name,
-                "division_kind": division.kind,
-                "description": division.description,
-            }
-            for division in divisions
-        ],
+        "source": dataset["source"],
+        "company": company,
+        "org_units": dataset["org_units"],
         "users": users,
         "projects": projects,
         "project_memberships": memberships,
     }
-    plan["summary"] = summarize(users, projects, memberships)
+    plan["summary"] = summarize(dataset, users, projects, memberships)
     return plan
 
 
@@ -486,33 +259,114 @@ def write_plan(plan: dict[str, Any], output_path: Path) -> None:
 
 
 def validate_plan(plan: dict[str, Any]) -> None:
+    company = plan["company"]
     summary = plan["summary"]
+    assert company["company_id"] == "SSK-TECH", company
+    assert company["company_name"] == "새싹테크솔루션 주식회사", company
+    assert company["annual_revenue_krw"] == 10_000_000_000, company
     assert summary["headcount"] == 50, summary
-    assert summary["developer_headcount"] == 45, summary
-    assert summary["management_headcount"] == 5, summary
+    assert summary["management_headcount"] == 10, summary
+    assert summary["research_headcount"] == 15, summary
+    assert summary["development_headcount"] == 25, summary
     assert summary["project_count"] == 15, summary
-    assert summary["division_count"] == 4, summary
-    assert plan["company"]["annual_revenue_krw"] == ANNUAL_REVENUE_KRW, plan["company"]
-    for division_code in ["RND", "DEV1", "DEV2"]:
-        assert summary["divisions"][division_code]["developer_headcount"] == 15, summary["divisions"][division_code]
-    assert summary["divisions"]["MGT"]["headcount"] == 5, summary["divisions"]["MGT"]
-    assert set(summary["positions"]) == {"사원", "선임", "책임", "수석", "이사"}, summary["positions"]
-    assert all(size == 3 for size in summary["project_sizes"].values()), summary["project_sizes"]
-    assert all(mm == 2.4 for mm in summary["project_planned_mm"].values()), summary["project_planned_mm"]
-    assert all(percent == 240.0 for percent in summary["project_allocation_percent"].values()), summary["project_allocation_percent"]
-    assert all(user["annual_salary_krw"] > 0 for user in plan["users"]), plan["users"]
+    assert summary["account_count"] == 50, summary
+    assert summary["login_id_match_count"] == 50, summary
+    assert summary["initial_password_1234_count"] == 50, summary
+    assert summary["assignment_count"] == 207, summary
+    assert summary["total_planned_mm"] == 50, summary
+    assert summary["total_labor_cost_krw"] == 432_000_000, summary
+    assert summary["employee_planned_mm_min"] == 1, summary
+    assert summary["employee_planned_mm_max"] == 1, summary
+    assert summary["employee_planned_mm_not_one_count"] == 0, summary
+    assert summary["max_single_planned_mm"] == 0.6, summary
+    assert summary["division_count"] == 3, summary
+    assert summary["team_count"] == 11, summary
+    assert not summary["duplicate_assignment_keys"], summary["duplicate_assignment_keys"]
+    assert not summary["missing_project_pms"], summary["missing_project_pms"]
     assert len({user["name"] for user in plan["users"]}) == 50, plan["users"]
+    assert all(user["annual_salary_krw"] > 0 for user in plan["users"]), plan["users"]
+    assert all(user["login_id"] == user["employee_no"] for user in plan["users"]), plan["users"]
+    assert all(user["initial_password"] == INITIAL_PASSWORD for user in plan["users"]), plan["users"]
+    assert all(user.get("auth_group") for user in plan["users"]), plan["users"]
+    project_ids = {project["project_id"] for project in plan["projects"]}
+    user_ids = {user["user_id"] for user in plan["users"]}
+    expected_project_sizes = summary["project_assignment_counts"]
+    for project in plan["projects"]:
+        assert project["pm_user_id"] in user_ids, project
+        assert expected_project_sizes[project["project_id"]] == project["metadata"]["registered_employee_count"], project
+    for membership in plan["project_memberships"]:
+        assert membership["project_id"] in project_ids, membership
+        assert membership["user_id"] in user_ids, membership
+        assert 0 <= membership["allocation_percent"] <= 100, membership
+        assert membership["planned_mm"] >= 0, membership
+        assert membership["allocated_cost_krw"] >= 0, membership
 
 
 def apply_plan(plan: dict[str, Any], password: str, status: str) -> dict[str, Any]:
-    password_hash = hash_password(password)
+    override_password = password != INITIAL_PASSWORD
+    company = plan["company"]
     users = plan["users"]
     projects = plan["projects"]
     memberships = plan["project_memberships"]
 
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
+            cursor.execute(
+                """
+                INSERT INTO company_profiles
+                    (company_id, company_name, english_name, industry, founded_on, headquarters,
+                     ceo, fiscal_year, annual_revenue_krw, headcount, project_count,
+                     organization_summary, headcount_summary, note, source_file, metadata)
+                VALUES
+                    (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (company_id)
+                DO UPDATE SET
+                    company_name = EXCLUDED.company_name,
+                    english_name = EXCLUDED.english_name,
+                    industry = EXCLUDED.industry,
+                    founded_on = EXCLUDED.founded_on,
+                    headquarters = EXCLUDED.headquarters,
+                    ceo = EXCLUDED.ceo,
+                    fiscal_year = EXCLUDED.fiscal_year,
+                    annual_revenue_krw = EXCLUDED.annual_revenue_krw,
+                    headcount = EXCLUDED.headcount,
+                    project_count = EXCLUDED.project_count,
+                    organization_summary = EXCLUDED.organization_summary,
+                    headcount_summary = EXCLUDED.headcount_summary,
+                    note = EXCLUDED.note,
+                    source_file = EXCLUDED.source_file,
+                    metadata = EXCLUDED.metadata,
+                    updated_at = now()
+                """,
+                (
+                    company["company_id"],
+                    company["company_name"],
+                    company.get("english_name"),
+                    company.get("industry"),
+                    company.get("founded_on"),
+                    company.get("headquarters"),
+                    company.get("ceo"),
+                    company.get("fiscal_year"),
+                    company.get("annual_revenue_krw"),
+                    company.get("headcount"),
+                    company.get("project_count"),
+                    company.get("organization_summary"),
+                    company.get("headcount_summary"),
+                    company.get("note"),
+                    plan.get("source", {}).get("file_name"),
+                    Jsonb(
+                        {
+                            "annual_revenue_label": company.get("annual_revenue_label"),
+                            "org_units": plan.get("org_units", []),
+                            "summary": plan.get("summary", {}),
+                            "source": plan.get("source", {}),
+                        }
+                    ),
+                ),
+            )
+
             for user in users:
+                seed_password = password if override_password else user.get("initial_password") or password
                 cursor.execute(
                     """
                     INSERT INTO users
@@ -533,7 +387,7 @@ def apply_plan(plan: dict[str, Any], password: str, status: str) -> dict[str, An
                         user["name"],
                         user["email"],
                         user["role"],
-                        password_hash,
+                        hash_password(seed_password),
                         status,
                     ),
                 )
@@ -565,15 +419,22 @@ def apply_plan(plan: dict[str, Any], password: str, status: str) -> dict[str, An
             for project in projects:
                 cursor.execute(
                     """
-                    INSERT INTO projects (project_id, name, status, pm_user_id)
-                    VALUES (%s, %s, %s, %s)
+                    INSERT INTO projects (project_id, name, description, status, pm_user_id)
+                    VALUES (%s, %s, %s, %s, %s)
                     ON CONFLICT (project_id)
                     DO UPDATE SET
                         name = EXCLUDED.name,
+                        description = EXCLUDED.description,
                         status = EXCLUDED.status,
                         pm_user_id = EXCLUDED.pm_user_id
                     """,
-                    (project["project_id"], project["name"], project["status"], project["pm_user_id"]),
+                    (
+                        project["project_id"],
+                        project["name"],
+                        project["description"],
+                        project["status"],
+                        project["pm_user_id"],
+                    ),
                 )
 
             project_ids = [project["project_id"] for project in projects]
@@ -605,12 +466,13 @@ def apply_plan(plan: dict[str, Any], password: str, status: str) -> dict[str, An
                 VALUES (NULL, 'seed_demo_company', 'company_fixture', %s, NULL, %s)
                 """,
                 (
-                    COMPANY_ID,
+                    plan["company"]["company_id"],
                     Jsonb(
                         {
                             "company": plan["company"],
                             "summary": plan["summary"],
-                            "seed_policy": "upsert_users_projects_project_members",
+                            "source": plan["source"],
+                            "seed_policy": "upsert_users_resources_projects_project_members_with_employee_no_login",
                         }
                     ),
                 ),
@@ -618,6 +480,7 @@ def apply_plan(plan: dict[str, Any], password: str, status: str) -> dict[str, An
 
     return {
         "applied": True,
+        "company_id": company["company_id"],
         "users": len(users),
         "projects": len(projects),
         "project_memberships": len(memberships),
@@ -626,8 +489,9 @@ def apply_plan(plan: dict[str, Any], password: str, status: str) -> dict[str, An
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build or apply the 50-person SW company demo fixture.")
+    parser = argparse.ArgumentParser(description="Build or apply the Saessak Tech Solutions demo fixture.")
     parser.add_argument("--apply", action="store_true", help="Persist the fixture to the configured Platform DB.")
+    parser.add_argument("--dataset", type=Path, default=DATASET_PATH, help="Company fixture JSON dataset path.")
     parser.add_argument("--output", type=Path, default=OUTPUT_PATH, help="Write the generated plan JSON to this path.")
     parser.add_argument("--password", default=INITIAL_PASSWORD, help="Initial password for seeded users when --apply is used.")
     parser.add_argument(
@@ -641,7 +505,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    plan = build_company_plan()
+    plan = build_company_plan(args.dataset)
     validate_plan(plan)
     write_plan(plan, args.output)
     result: dict[str, Any] = {

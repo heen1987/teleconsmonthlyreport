@@ -3,10 +3,10 @@
   "package_name": "com.aipms",
   "apk": "AiPmsAndroidClient-responsive-public-debug.apk",
   "apk_alias": "AI-PMS-Recorder.apk",
-  "sha256": "ba5f4976ba1a3db3eb3c99db4ebce53ffd5efeff0b7b57ba3d888d29b5184dce",
-  "size_bytes": 2905140,
-  "size_mb": "2.8",
-  "published_at": "2026-06-29T23:57:11Z",
+  "sha256": "c16e486c0a959338c57d3178446776cd210c260299971a5a9f8497e8592c02c1",
+  "size_bytes": 11185933,
+  "size_mb": "10.7",
+  "published_at": "2026-06-30T23:54:56Z",
   "layout": "responsive_phone_tablet",
   "signing": "debug_v2"
 }

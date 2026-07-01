@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from app.core.config import settings
+from app.core.limiter import limiter
 from app.db.session import get_connection
 from app.domain.statuses import AccountStatus
 from app.schemas import (
@@ -24,7 +25,8 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.post("/login", response_model=LoginOut)
-def login(payload: LoginRequest):
+@limiter.limit("5/minute")
+def login(request: Request, payload: LoginRequest):
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
@@ -36,8 +38,10 @@ def login(payload: LoginRequest):
                 (payload.employee_no,),
             )
             row = cursor.fetchone()
-            if row is None or not verify_password(payload.password, row["password_hash"]):
-                raise HTTPException(status_code=401, detail="Invalid employee number or password")
+            if row is None:
+                raise HTTPException(status_code=401, detail="INVALID_ID")
+            if not verify_password(payload.password, row["password_hash"]):
+                raise HTTPException(status_code=401, detail="INVALID_PASSWORD")
             if row["status"] in {AccountStatus.LOCKED.value, AccountStatus.DISABLED.value}:
                 raise HTTPException(status_code=403, detail="Access denied")
             access_token, expires_at = issue_access_token(cursor, row["user_id"])
@@ -108,7 +112,8 @@ def change_password(
 
 
 @router.post("/password-reset/request", response_model=PasswordResetRequestOut)
-def request_password_reset(payload: PasswordResetRequest):
+@limiter.limit("3/minute")
+def request_password_reset(request: Request, payload: PasswordResetRequest):
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
             user, token, expires_at = issue_password_reset_token(
@@ -139,12 +144,19 @@ def request_password_reset(payload: PasswordResetRequest):
                     ),
                 ),
             )
+    if settings.password_reset_delivery_mode == "dev_log":
+        delivery_status = "dev_token_returned"
+        response_token: str | None = token
+    else:
+        # smtp 또는 기타 운영 모드: 토큰을 응답에 노출하지 않는다
+        delivery_status = "email_queued"
+        response_token = None
     return PasswordResetRequestOut(
         employee_no=user["employee_no"],
         email=payload.email,
         expires_at=expires_at,
-        delivery_status="dev_token_returned",
-        reset_token=token,
+        delivery_status=delivery_status,
+        reset_token=response_token,
     )
 
 

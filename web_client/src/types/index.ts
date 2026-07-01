@@ -79,7 +79,7 @@ export type AuthSession = {
   user: User;
 };
 
-export type AppView = "visual" | "review" | "admin";
+export type AppView = "visual" | "minutes" | "review" | "admin";
 
 export const KNOWLEDGE_ITEM_KINDS = [
   "all",
@@ -130,8 +130,39 @@ export type ProjectDashboard = {
   knowledge_items: number;
 };
 
+export type Task = {
+  task_id: string;
+  project_id: string;
+  source_meeting_id?: string | null;
+  source_analysis_id?: string | null;
+  title: string;
+  description?: string | null;
+  assignee?: string | null;
+  due_date?: string | null;
+  priority: string;
+  status: string;
+  conversion_status: string;
+};
+
+export type ResourceDemand = {
+  demand_id: string;
+  project_id: string;
+  source_meeting_id?: string | null;
+  source_analysis_id?: string | null;
+  name: string;
+  resource_type: string;
+  quantity?: number | null;
+  needed_from?: string | null;
+  needed_to?: string | null;
+  reason?: string | null;
+  demand_status: string;
+};
+
 export type ProjectDetail = Project & {
   members: ProjectMember[];
+  tasks: Task[];
+  resource_demands: ResourceDemand[];
+  knowledge_items: ProjectKnowledgeItem[];
   dashboard: ProjectDashboard;
 };
 
@@ -293,7 +324,14 @@ export type MeetingAnalysisResult = {
 };
 
 export type ReviewPackage = {
-  meeting: { meeting_id: string; project_id: string; title: string; status: string };
+  meeting: {
+    meeting_id: string;
+    project_id: string;
+    title: string;
+    status: string;
+    audio_path?: string | null;
+    transcript?: string | null;
+  };
   analysis_id: string;
   analysis_status: string;
   model_name: string;
@@ -321,6 +359,7 @@ export type EmailDeliveryAttempt = {
   recipient_email: string;
   recipient_name?: string | null;
   status: string;
+  attempt_no: number;
   provider_message_id?: string | null;
   error_message?: string | null;
   attempted_at: string;

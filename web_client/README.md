@@ -28,7 +28,14 @@ Environment:
 
 ```bash
 VITE_API_BASE=http://127.0.0.1:8000
+AIPMS_WEB_BIND_HOST=127.0.0.1
+AIPMS_WEB_ALLOW_PUBLIC_BIND=0
 ```
+
+The repository run scripts keep the Web dev server on `127.0.0.1:3000` by
+default. Public or LAN binding requires both `AIPMS_WEB_BIND_HOST=0.0.0.0` and
+`AIPMS_WEB_ALLOW_PUBLIC_BIND=1`; routine external access should use the
+Cloudflare tunnel script from the repository root.
 
 Public routes:
 

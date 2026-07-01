@@ -25,7 +25,8 @@ Target Android MVP flow:
 
 Implemented first-pass behavior:
 
-- plain Android `Activity` UI without Compose dependency
+- Hybrid UI structure: migrating from Programmatic Views to Jetpack Compose
+- `MainAppTheme` integration with brand colors: Deep Blue (#0A3066), Cyan (#0496A6), and Background (#F4F7F9)
 - responsive phone/tablet layout in one APK
 - single-screen recorder-first UI with no side menu, no tab menu, and no
   explanatory guide cards
@@ -94,11 +95,13 @@ bash scripts/smoke_lan_access.sh
 bash scripts/build_android_lan_debug.sh
 ```
 
-Temporary public-tunnel build:
+Temporary public Collection tunnel build:
 
 ```bash
-bash scripts/run_public_tunnels.sh
-bash scripts/refresh_public_handoff_bundle.sh
+bash scripts/run_collection_analysis_public_tunnel.sh
+AIPMS_PLATFORM_API_URL=<platform-server-public-https-url> \
+AIPMS_PUBLIC_COLLECTION_URL=<collection-public-url> \
+bash scripts/build_android_public_debug.sh
 ```
 
 The public Web tunnel serves `/run/` as an execution hub for Web, API, APK,
@@ -108,12 +111,14 @@ handoff, and verification commands. The same refresh publishes
 Rebuild the APK during the same refresh when tunnel URLs changed:
 
 ```bash
+AIPMS_PLATFORM_API_URL=<platform-server-public-https-url> \
+AIPMS_PUBLIC_COLLECTION_URL=<collection-public-url> \
 bash scripts/build_android_public_debug.sh
 AIPMS_REFRESH_BUILD_APK=1 bash scripts/refresh_public_handoff_bundle.sh
 ```
 
 The public build creates `artifacts/apk/AiPmsAndroidClient-responsive-public-debug.apk`
-with active Platform and Collection tunnel URLs as the app defaults.
+with the Platform server URL and active Collection public URL as the app defaults.
 It also writes the same installable APK as `artifacts/apk/AI-PMS-Recorder.apk`
 for nontechnical testers.
 The publish script copies the APK into `web_client/public/downloads/` so the
@@ -168,11 +173,30 @@ Android-uploaded M4A asset -> STT -> LLM -> Platform callback succeeded
 
 Current source map:
 
-- `src/main/java/com/aipms/MainActivity.kt`: A-001 to A-005 single-screen recorder flow with Drive screen-design visual styling
+- `src/main/java/com/aipms/MainActivity.kt`: Entry point managing activity lifecycle and login state; integrates Compose via `ComposeView`.
+- `src/main/java/com/aipms/AppComposeUI.kt`: Main repository for @Composable functions and `MainAppTheme`.
 - `src/main/java/com/aipms/recording/AndroidAudioRecorder.kt`: microphone recorder
 - `src/main/java/com/aipms/client/KtorAiPmsApiClient.kt`: API client
 - `src/main/java/com/aipms/client/MeetingUploadRepository.kt`: upload/job orchestration
 - `src/main/java/com/aipms/client/AiPmsContracts.kt`: DTO contracts
+
+## UI Development Guide (Jetpack Compose)
+
+The project is transitioning to **Jetpack Compose (Declarative UI)**. Follow these guidelines for new UI components:
+
+### 1. Structure
+- **AppComposeUI.kt**: Add all new screens or UI components here as `@Composable` functions.
+- **Interoperability**: `MainActivity.kt` hosts these components using `ComposeView`. Use `MainAppTheme` to wrap your composables to ensure brand consistency.
+
+### 2. Design Standards (Material 3)
+- **Scaffold**: Use for basic screen structures (TopBar, BottomBar).
+- **Cards**: Use `Card` with `shape = RoundedCornerShape(12.dp)` for project lists and status items.
+- **Typography**: Always use `MaterialTheme.typography` for consistent font scaling.
+
+### 3. Recommended Next Steps
+- **Input Forms**: Implement email/password fields using `OutlinedTextField`.
+- **Social Login**: Create a Google login button using `OutlinedButton` and official brand assets.
+- **Screen Migration**: Gradually replace remaining legacy view methods (`projectsScreen()`, `recordingScreen()`) with Compose equivalents.
 
 Remaining device-level work:
 

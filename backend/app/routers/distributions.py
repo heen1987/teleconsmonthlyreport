@@ -358,7 +358,6 @@ def retry_meeting_distribution(
     distribution_id: str,
     current_user: dict = Depends(require_active_user),
 ):
-    _ = current_user
     retryable_statuses = {
         DistributionStatus.FAILED.value,
         DistributionStatus.PARTIAL_FAILED.value,
@@ -372,6 +371,18 @@ def retry_meeting_distribution(
             if distribution["status"] not in retryable_statuses:
                 raise HTTPException(status_code=409, detail="Distribution is not retryable")
             delivered = deliver_distribution(cursor, distribution)
+            cursor.execute(
+                """
+                INSERT INTO audit_logs
+                    (actor_user_id, action_type, target_table, target_id, after_value)
+                VALUES (%s, 'retry_distribution', 'email_distributions', %s, %s)
+                """,
+                (
+                    current_user["user_id"],
+                    distribution_id,
+                    Jsonb({"meeting_id": meeting_id, "status": delivered["status"]}),
+                ),
+            )
             return _distribution_from_row(cursor, delivered)
 
 
@@ -380,7 +391,6 @@ def retry_due_distributions(
     payload: EmailRetryDueRequest,
     current_user: dict = Depends(require_active_user),
 ):
-    _ = current_user
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
@@ -411,4 +421,17 @@ def retry_due_distributions(
             )
             due_rows = cursor.fetchall()
             delivered_rows = [deliver_distribution(cursor, row) for row in due_rows]
+            for row in delivered_rows:
+                cursor.execute(
+                    """
+                    INSERT INTO audit_logs
+                        (actor_user_id, action_type, target_table, target_id, after_value)
+                    VALUES (%s, 'retry_due_distribution', 'email_distributions', %s, %s)
+                    """,
+                    (
+                        current_user["user_id"],
+                        row["distribution_id"],
+                        Jsonb({"meeting_id": row["meeting_id"], "status": row["status"]}),
+                    ),
+                )
             return [_distribution_from_row(cursor, row) for row in delivered_rows]

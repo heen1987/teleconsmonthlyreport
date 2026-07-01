@@ -49,7 +49,7 @@ extract_url() {
     echo "Missing tunnel log: $log_file" >&2
     return 1
   fi
-  grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' "$log_file" | tail -1
+  grep -aEo 'https://[a-z0-9-]+\.trycloudflare\.com' "$log_file" | tail -1
 }
 
 resolve_url() {
@@ -129,15 +129,17 @@ check_get "Collection public health" "$COLLECTION_URL/health" /tmp/aipms-public-
 check_get "Analysis public health" "$ANALYSIS_URL/health" /tmp/aipms-public-analysis.json
 check_get "Web APK download route" "$WEB_URL/downloads/" /tmp/aipms-public-downloads.html
 check_get "Web APK install guide" "$WEB_URL/downloads/install.html" /tmp/aipms-public-install-guide.html
-check_get "Web handoff route" "$WEB_URL/handoff/" /tmp/aipms-public-handoff.html
+check_get "Web handoff route" "$WEB_URL/handoff/" /tmp/aipms-public-handoff-route.html
+check_get "Web handoff static" "$WEB_URL/handoff/index.html" /tmp/aipms-public-handoff.html
 check_get "Web review package" "$WEB_URL/handoff/public-review-package.json" /tmp/aipms-public-review-package.json
 check_get "Web review response template" "$WEB_URL/handoff/review-response-template.md" /tmp/aipms-public-review-response-template.md
 check_get "Web APK metadata" "$WEB_URL/downloads/android-apk.json" /tmp/aipms-public-apk.json
 check_get "Web requirements manifest" "$WEB_URL/requirements/requirements.json" /tmp/aipms-public-requirements.json
 check_get "Web requirements Markdown" "$WEB_URL/requirements/$REQUIREMENTS_MD_NAME" /tmp/aipms-public-requirements.md
 check_contains "Install guide" /tmp/aipms-public-install-guide.html "AI-PMS Recorder 설치 확인"
-check_contains "Install guide" /tmp/aipms-public-install-guide.html "Tablet two-column"
-check_contains "Execution hub" /tmp/aipms-public-run-index.html "AI-PMS 실행 허브"
+check_contains "Install guide" /tmp/aipms-public-install-guide.html "휴대폰 / 태블릿"
+check_contains "Execution hub" /tmp/aipms-public-run-index.html "MEETFLOW"
+check_contains "Execution hub" /tmp/aipms-public-run-index.html "전체 처리 흐름"
 check_contains "Execution JSON" /tmp/aipms-public-run.json "public_execution_hub"
 check_contains "Execution JSON" /tmp/aipms-public-run.json "android_apk"
 check_contains "Execution JSON" /tmp/aipms-public-run.json "requirements_docx"
@@ -150,7 +152,8 @@ check_contains "Review package" /tmp/aipms-public-review-package.json "review_re
 check_contains "Review package" /tmp/aipms-public-review-package.json "response_collection"
 check_contains "Review response template" /tmp/aipms-public-review-response-template.md "AI-PMS 파트별 검토 회신 템플릿"
 check_contains "Review response template" /tmp/aipms-public-review-response-template.md "요구사항정의서"
-check_contains "Handoff page" /tmp/aipms-public-handoff.html "$REQUIREMENTS_DOCX_NAME"
+check_contains "Handoff page" /tmp/aipms-public-handoff.html "AI-PMS 화면 확인"
+check_contains "Handoff page" /tmp/aipms-public-handoff.html "전체 처리 흐름"
 check_contains "Review response template" /tmp/aipms-public-review-response-template.md "승인 가능 / 수정 필요 / 질문 / 미검증"
 check_contains "APK metadata" /tmp/aipms-public-apk.json "$APK_FILE_NAME"
 check_contains "APK metadata" /tmp/aipms-public-apk.json "$APK_ALIAS_NAME"
@@ -185,4 +188,4 @@ if [ "$cors_status" != "200" ]; then
   fail "Public access smoke failed at: Platform public CORS preflight"
 fi
 
-echo "{'web': '200', 'run': '200', 'run_static': '200', 'run_json': '200', 'downloads': '200', 'install_guide': '200', 'handoff': '200', 'review_package': '200', 'response_template': '200', 'requirements_manifest': '200', 'requirements_markdown': '200', 'requirements_docx': '200', 'apk': '200', 'apk_alias': '200', 'platform': '200', 'collection': '200', 'analysis': '200', 'cors': '$cors_status'}"
+echo "{'web': '200', 'run': '200', 'run_static': '200', 'run_json': '200', 'downloads': '200', 'install_guide': '200', 'handoff': '200', 'handoff_static': '200', 'review_package': '200', 'response_template': '200', 'requirements_manifest': '200', 'requirements_markdown': '200', 'requirements_docx': '200', 'apk': '200', 'apk_alias': '200', 'platform': '200', 'collection': '200', 'analysis': '200', 'cors': '$cors_status'}"

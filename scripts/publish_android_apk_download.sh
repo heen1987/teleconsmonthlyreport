@@ -25,9 +25,19 @@ if [ ! -f "$APK_SOURCE" ]; then
   exit 1
 fi
 
+copy_atomic() {
+  local source="$1"
+  local target="$2"
+  local tmp_target="$target.tmp.$$"
+
+  rm -f "$tmp_target"
+  cp "$source" "$tmp_target"
+  mv -f "$tmp_target" "$target"
+}
+
 mkdir -p "$DOWNLOAD_DIR"
-cp "$APK_SOURCE" "$APK_TARGET"
-cp "$APK_SOURCE" "$APK_ALIAS_TARGET"
+copy_atomic "$APK_SOURCE" "$APK_TARGET"
+copy_atomic "$APK_SOURCE" "$APK_ALIAS_TARGET"
 
 SHA256="$(shasum -a 256 "$APK_TARGET" | awk '{ print $1 }')"
 SIZE_BYTES="$(wc -c < "$APK_TARGET" | tr -d ' ')"
@@ -50,8 +60,8 @@ cat > "$METADATA_TARGET" <<EOF
 EOF
 
 mkdir -p "$DIRECT_APK_DIR" "$LOCAL_DOWNLOAD_APK_DIR"
-cp "$APK_SOURCE" "$DIRECT_APK_TARGET"
-cp "$APK_SOURCE" "$LOCAL_DOWNLOAD_APK_TARGET"
+copy_atomic "$APK_SOURCE" "$DIRECT_APK_TARGET"
+copy_atomic "$APK_SOURCE" "$LOCAL_DOWNLOAD_APK_TARGET"
 
 cat > "$DIRECT_SHA_TARGET" <<EOF
 $SHA256  $APK_ALIAS_NAME
@@ -224,36 +234,22 @@ cat > "$INDEX_TARGET" <<EOF
         margin: 0;
         overflow-wrap: anywhere;
       }
-      code {
-        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      }
     </style>
   </head>
   <body>
     <main>
       <section>
-        <h1>AI-PMS Recorder APK</h1>
-        <p>휴대폰과 태블릿 화면에 자동 대응하는 Android debug APK입니다.</p>
-        <p>Android에서 설치 차단 안내가 나오면 테스트용 APK 설치를 허용해야 합니다.</p>
+        <h1>MEETFLOW APK</h1>
         <a class="button" href="./$APK_ALIAS_NAME" download>APK 다운로드</a>
-        <a class="button secondary" href="/run/">실행 허브</a>
-        <a class="button secondary" href="./$APK_NAME" download>개발자용 파일명</a>
-        <a class="button secondary" href="./install.html">설치 확인 가이드</a>
         <dl>
-          <dt>Package</dt>
-          <dd><code>com.aipms</code></dd>
-          <dt>Install file</dt>
-          <dd><code>$APK_ALIAS_NAME</code></dd>
-          <dt>Build file</dt>
-          <dd><code>$APK_NAME</code></dd>
+          <dt>File</dt>
+          <dd>$APK_ALIAS_NAME</dd>
           <dt>Size</dt>
           <dd>$SIZE_MB MB</dd>
-          <dt>SHA256</dt>
-          <dd><code>$SHA256</code></dd>
           <dt>Published</dt>
           <dd>$PUBLISHED_AT</dd>
           <dt>Layout</dt>
-          <dd>Phone single-column / Tablet two-column</dd>
+          <dd>휴대폰 / 태블릿</dd>
         </dl>
       </section>
     </main>
@@ -351,9 +347,6 @@ cat > "$INSTALL_TARGET" <<EOF
         margin: 0;
         overflow-wrap: anywhere;
       }
-      code {
-        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      }
       @media (max-width: 760px) {
         .grid {
           grid-template-columns: 1fr;
@@ -364,70 +357,34 @@ cat > "$INSTALL_TARGET" <<EOF
   <body>
     <main>
       <header>
-        <h1>AI-PMS Recorder 설치 확인</h1>
-        <p>휴대폰과 태블릿에서 같은 APK를 설치한 뒤 녹음, 업로드, 처리상태 확인 흐름을 점검합니다.</p>
+        <h1>MEETFLOW APK</h1>
         <a class="button" href="./$APK_ALIAS_NAME" download>APK 다운로드</a>
-        <a class="button secondary" href="/run/">실행 허브</a>
-        <a class="button secondary" href="./$APK_NAME" download>개발자용 파일명</a>
         <a class="button secondary" href="./">다운로드 정보</a>
       </header>
 
       <div class="grid">
         <section>
-          <h2>설치 전 확인</h2>
-          <ol>
-            <li>테스트 기기에서 외부 APK 설치를 허용합니다.</li>
-            <li>기존 <code>com.aipms</code> debug 앱이 있으면 필요 시 삭제합니다.</li>
-            <li>네트워크가 현재 public Platform/Collection API에 접근 가능한지 확인합니다.</li>
-            <li>설치 후 앱 이름이 <code>AI-PMS Recorder</code>로 보이는지 확인합니다.</li>
-          </ol>
-        </section>
-
-        <section>
           <h2>APK 정보</h2>
           <dl>
-            <dt>Package</dt>
-            <dd><code>com.aipms</code></dd>
-            <dt>Install file</dt>
-            <dd><code>$APK_ALIAS_NAME</code></dd>
+            <dt>File</dt>
+            <dd>$APK_ALIAS_NAME</dd>
             <dt>Layout</dt>
-            <dd>Phone single-column / Tablet two-column</dd>
+            <dd>휴대폰 / 태블릿</dd>
             <dt>Size</dt>
             <dd>$SIZE_MB MB</dd>
-            <dt>SHA256</dt>
-            <dd><code>$SHA256</code></dd>
           </dl>
         </section>
 
         <section>
-          <h2>휴대폰 확인</h2>
-          <ul>
-            <li>세로 화면에서 프로젝트 선택, 자동 배포 대상 확인, 녹음 컨트롤이 한 컬럼 흐름으로 보이는지 확인합니다.</li>
-            <li>긴 프로젝트명과 상태 문구가 버튼이나 카드 밖으로 넘치지 않는지 확인합니다.</li>
-            <li>녹음 시작, 중지, 업로드 버튼이 엄지 조작 범위에서 접근 가능한지 확인합니다.</li>
-          </ul>
-        </section>
-
-        <section>
-          <h2>태블릿 확인</h2>
-          <ul>
-            <li>600dp 이상 화면에서 프로젝트 선택/자동 배포 대상 영역과 녹음/상태 영역이 두 컬럼으로 나뉘는지 확인합니다.</li>
-            <li>가로/세로 전환 후에도 버튼, 상태, 목록이 겹치지 않는지 확인합니다.</li>
-            <li>회의 상태 확인 영역이 업로드 완료 후에도 안정적으로 유지되는지 확인합니다.</li>
-          </ul>
+          <h2>화면</h2>
+          <dl>
+            <dt>휴대폰</dt>
+            <dd>단일 화면</dd>
+            <dt>태블릿</dt>
+            <dd>분할 화면</dd>
+          </dl>
         </section>
       </div>
-
-      <section style="margin-top: 14px">
-        <h2>기능 흐름 확인</h2>
-        <ol>
-          <li>사번으로 로그인하고 필요 시 초기 비밀번호를 변경합니다.</li>
-          <li>프로젝트를 선택하고 프로젝트 구성원이 자동 배포 대상임을 확인합니다.</li>
-          <li>짧은 테스트 음성을 녹음한 뒤 업로드합니다.</li>
-          <li>Collection job이 생성되고 처리상태가 조회되는지 확인합니다.</li>
-          <li>Web 콘솔에서 해당 회의가 검토 대상으로 이어지는지 확인합니다.</li>
-        </ol>
-      </section>
     </main>
   </body>
 </html>

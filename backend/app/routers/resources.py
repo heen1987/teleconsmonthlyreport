@@ -513,8 +513,20 @@ def promote_unassigned_resource_demands_to_risks(
     )
 
 
+ALLOWED_DEMAND_STATUSES = {"candidate", "reserved", "assigned", "conflict", "cancelled", "closed"}
+
+
 @router.patch("/demands/{demand_id}/status", response_model=ResourceDemandOut)
-def update_resource_demand_status(demand_id: str, status: str):
+def update_resource_demand_status(
+    demand_id: str,
+    status: str,
+    current_user: dict = Depends(require_active_user),
+):
+    if status not in ALLOWED_DEMAND_STATUSES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid status '{status}'. Allowed values: {sorted(ALLOWED_DEMAND_STATUSES)}",
+        )
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
@@ -528,8 +540,20 @@ def update_resource_demand_status(demand_id: str, status: str):
                 (status, demand_id),
             )
             row = cursor.fetchone()
-    if row is None:
-        raise HTTPException(status_code=404, detail="Resource demand not found")
+            if row is None:
+                raise HTTPException(status_code=404, detail="Resource demand not found")
+            cursor.execute(
+                """
+                INSERT INTO audit_logs
+                    (actor_user_id, action_type, target_table, target_id, after_value)
+                VALUES (%s, 'update_resource_demand_status', 'resource_demands', %s, %s)
+                """,
+                (
+                    current_user["user_id"],
+                    demand_id,
+                    Jsonb({"demand_status": status}),
+                ),
+            )
     return row
 
 

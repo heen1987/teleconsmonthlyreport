@@ -29,6 +29,15 @@ Run:
 bash scripts/run_collection_api.sh
 ```
 
+External-network binding policy:
+
+- default bind is `127.0.0.1:8200`
+- expose external Android access through VPN or Cloudflare tunnel
+- direct `0.0.0.0:8200` binding requires
+  `AIPMS_COLLECTION_BIND_HOST=0.0.0.0 AIPMS_COLLECTION_ALLOW_PUBLIC_BIND=1`
+- run `bash scripts/generate_prod_secrets.sh` before external sharing and
+  restart Platform, Collection, and Analysis services
+
 Open:
 
 - http://127.0.0.1:8200/health

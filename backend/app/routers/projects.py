@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 
 from app.db.session import get_connection
 from app.schemas import (
@@ -66,7 +67,7 @@ def _fetch_project_members(cursor, project_id: str) -> list[ProjectMemberOut]:
 
 
 @router.post("", response_model=ProjectOut)
-def create_project(payload: ProjectCreate):
+def create_project(payload: ProjectCreate, current_user: dict = Depends(require_active_user)):
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
@@ -78,6 +79,18 @@ def create_project(payload: ProjectCreate):
                 (payload.project_id, payload.name, payload.description, payload.pm_user_id),
             )
             row = cursor.fetchone()
+            cursor.execute(
+                """
+                INSERT INTO audit_logs
+                    (actor_user_id, action_type, target_table, target_id, after_value)
+                VALUES (%s, 'create_project', 'projects', %s, %s)
+                """,
+                (
+                    current_user["user_id"],
+                    payload.project_id,
+                    Jsonb({"name": payload.name, "pm_user_id": payload.pm_user_id}),
+                ),
+            )
     return row
 
 
@@ -104,11 +117,15 @@ def get_project(project_id: str):
 
 
 @router.put("/{project_id}", response_model=ProjectOut)
-def update_project(project_id: str, payload: ProjectUpdate):
+def update_project(
+    project_id: str,
+    payload: ProjectUpdate,
+    current_user: dict = Depends(require_active_user),
+):
     fields_set = getattr(payload, "model_fields_set", set())
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
-            _ensure_project_exists(cursor, project_id)
+            before = _fetch_project(cursor, project_id)
             assignments: list[str] = []
             params: list[object] = []
 
@@ -134,8 +151,21 @@ def update_project(project_id: str, payload: ProjectUpdate):
                     params,
                 )
                 row = cursor.fetchone()
+                cursor.execute(
+                    """
+                    INSERT INTO audit_logs
+                        (actor_user_id, action_type, target_table, target_id, before_value, after_value)
+                    VALUES (%s, 'update_project', 'projects', %s, %s, %s)
+                    """,
+                    (
+                        current_user["user_id"],
+                        project_id,
+                        Jsonb(dict(before)),
+                        Jsonb(dict(row)),
+                    ),
+                )
             else:
-                row = _fetch_project(cursor, project_id)
+                row = before
     return row
 
 
@@ -197,7 +227,11 @@ def list_project_knowledge_items(
 
 
 @router.post("/{project_id}/members", response_model=ProjectMemberOut)
-def add_project_member(project_id: str, payload: ProjectMemberAdd):
+def add_project_member(
+    project_id: str,
+    payload: ProjectMemberAdd,
+    current_user: dict = Depends(require_active_user),
+):
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
             _ensure_project_exists(cursor, project_id)
@@ -248,8 +282,20 @@ def add_project_member(project_id: str, payload: ProjectMemberAdd):
                 (project_id, payload.user_id),
             )
             row = cursor.fetchone()
-    if row is None:
-        raise HTTPException(status_code=404, detail="User not found")
+            if row is None:
+                raise HTTPException(status_code=404, detail="User not found")
+            cursor.execute(
+                """
+                INSERT INTO audit_logs
+                    (actor_user_id, action_type, target_table, target_id, after_value)
+                VALUES (%s, 'add_project_member', 'project_members', %s, %s)
+                """,
+                (
+                    current_user["user_id"],
+                    f"{project_id}:{payload.user_id}",
+                    Jsonb({"project_id": project_id, "user_id": payload.user_id, "project_role": payload.project_role}),
+                ),
+            )
     return row
 
 
@@ -262,7 +308,11 @@ def list_project_members(project_id: str):
 
 
 @router.delete("/{project_id}/members/{user_id}", status_code=204)
-def delete_project_member(project_id: str, user_id: str):
+def delete_project_member(
+    project_id: str,
+    user_id: str,
+    current_user: dict = Depends(require_active_user),
+):
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
             _ensure_project_exists(cursor, project_id)
@@ -275,8 +325,20 @@ def delete_project_member(project_id: str, user_id: str):
                 (project_id, user_id),
             )
             deleted = cursor.fetchone()
-    if deleted is None:
-        raise HTTPException(status_code=404, detail="Project member not found")
+            if deleted is None:
+                raise HTTPException(status_code=404, detail="Project member not found")
+            cursor.execute(
+                """
+                INSERT INTO audit_logs
+                    (actor_user_id, action_type, target_table, target_id, after_value)
+                VALUES (%s, 'remove_project_member', 'project_members', %s, %s)
+                """,
+                (
+                    current_user["user_id"],
+                    f"{project_id}:{user_id}",
+                    Jsonb({"project_id": project_id, "user_id": user_id}),
+                ),
+            )
 
 
 @router.get("/{project_id}/detail", response_model=ProjectDetailOut)

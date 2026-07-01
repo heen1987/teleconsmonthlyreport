@@ -196,3 +196,4 @@ Then test each model with the same PMS prompts:
 | Coding explanation | Granite 4.1 3B | Qwen |
 | Image/screenshot experiment | Gemma 3 4B | external API |
 | Accounting/cost draft | Qwen or Granite | rule engine must validate |
+

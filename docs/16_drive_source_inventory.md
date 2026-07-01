@@ -94,3 +94,10 @@ next implementation slice, then reconcile it with local scaffold documents:
 - `scripts/doctor_public_handoff.sh` records non-mutating public handoff
   readiness diagnostics in `runtime/public_handoff/latest_doctor.json` and
   `runtime/public_handoff/latest_doctor.md` before external links are shared.
+- `scripts/smoke_public_external_flow.sh` verifies the public end-to-end
+  pathway from app-side upload contract to Collection API, Mac mini Analysis
+  Worker, Platform callback, and Web/App review data.
+- `scripts/run_continuous_acceptance_check.sh` now remains the acceptance gate
+  for externally exposed runtime state: public tunnel health, raw local port
+  binding guards, Collection upload authentication controls, APK publication
+  freshness, and latest public E2E flow evidence.

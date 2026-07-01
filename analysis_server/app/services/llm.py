@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 
 import httpx
@@ -12,6 +13,9 @@ from app.schemas import (
     RiskCandidate,
     TranscriptSegment,
 )
+
+logger = logging.getLogger(__name__)
+FALLBACK_MODEL_NAME = "fallback:rules"
 
 
 SYSTEM_PROMPT = """You are the local analysis server for a PMS meeting-management module.
@@ -74,7 +78,7 @@ Return draft candidates only.
 
 
 def _fallback_analysis(transcript: str) -> MeetingAnalysisPayload:
-    first_line = transcript.strip().splitlines()[0][:160]
+    first_line = (transcript.strip().splitlines() or [""])[0][:160]
     sentences = [
         sentence.strip()
         for sentence in re.split(r"[.!?\n。]+", transcript)
@@ -127,6 +131,23 @@ def _fallback_analysis(transcript: str) -> MeetingAnalysisPayload:
     )
 
 
+def _parse_model_list(value: str) -> list[str]:
+    return [model.strip() for model in value.split(",") if model.strip()]
+
+
+def _model_candidates() -> list[str]:
+    configured = [settings.ollama_model, *_parse_model_list(settings.ollama_fallback_models)]
+    candidates: list[str] = []
+    seen: set[str] = set()
+    for model in configured:
+        if model and model not in seen:
+            candidates.append(model)
+            seen.add(model)
+    if not any(model.lower().startswith("qwen") for model in candidates):
+        candidates.append("qwen3:4b")
+    return candidates
+
+
 def _load_json_payload(content: str) -> dict:
     cleaned = content.strip()
     if cleaned.startswith("```"):
@@ -139,9 +160,54 @@ def _load_json_payload(content: str) -> dict:
     return json.loads(cleaned)
 
 
-async def analyze_transcript(transcript: str) -> MeetingAnalysisPayload:
-    payload = {
-        "model": settings.ollama_model,
+def _normalize_candidate_payload(payload: dict) -> dict:
+    payload["schema_version"] = payload.get("schema_version") or "analysis.v1"
+    payload["language"] = payload.get("language") or "ko"
+    payload["requires_human_approval"] = True
+
+    for key in ["transcript_segments", "decisions", "action_items", "risks", "required_resources"]:
+        if not isinstance(payload.get(key), list):
+            payload[key] = []
+
+    for index, segment in enumerate(payload["transcript_segments"], start=1):
+        segment["segment_id"] = segment.get("segment_id") or f"seg-{index:03d}"
+        segment["text"] = segment.get("text") or "Transcript segment"
+
+    for decision in payload["decisions"]:
+        decision["content"] = decision.get("content") or decision.get("evidence") or "Decision candidate"
+
+    for action_item in payload["action_items"]:
+        action_item["title"] = action_item.get("title") or action_item.get("content") or "Action item candidate"
+        action_item["target_module"] = action_item.get("target_module") or "task"
+        if action_item.get("priority") not in {"low", "medium", "high"}:
+            action_item["priority"] = "medium"
+        action_item["task_conversion_policy"] = "manual_review_required"
+        action_item["task_conversion_status"] = "candidate"
+
+    for risk in payload["risks"]:
+        risk["title"] = risk.get("title") or risk.get("content") or "Risk candidate"
+        if risk.get("level") not in {"low", "medium", "high"}:
+            risk["level"] = "medium"
+
+    for resource in payload["required_resources"]:
+        resource["name"] = resource.get("name") or resource.get("reason") or "Required resource candidate"
+        if resource.get("resource_type") not in {"human", "equipment", "room", "vehicle", "software", "other"}:
+            resource["resource_type"] = "other"
+
+    return payload
+
+
+def _enforce_draft_safety(result: MeetingAnalysisPayload) -> MeetingAnalysisPayload:
+    result.requires_human_approval = True
+    for action_item in result.action_items:
+        action_item.task_conversion_policy = "manual_review_required"
+        action_item.task_conversion_status = "candidate"
+    return result
+
+
+def _build_ollama_payload(model_name: str, transcript: str) -> dict:
+    return {
+        "model": model_name,
         "stream": False,
         "format": "json",
         "messages": [
@@ -157,14 +223,28 @@ async def analyze_transcript(transcript: str) -> MeetingAnalysisPayload:
         },
     }
 
-    try:
-        async with httpx.AsyncClient(timeout=90) as client:
-            response = await client.post(
-                f"{settings.ollama_base_url}/api/chat",
-                json=payload,
-            )
-            response.raise_for_status()
-        content = response.json()["message"]["content"]
-        return MeetingAnalysisPayload.model_validate(_load_json_payload(content))
-    except Exception:
-        return _fallback_analysis(transcript)
+
+async def _analyze_with_ollama_model(model_name: str, transcript: str) -> MeetingAnalysisPayload:
+    payload = _build_ollama_payload(model_name, transcript)
+    async with httpx.AsyncClient(timeout=settings.ollama_timeout_seconds) as client:
+        response = await client.post(
+            f"{settings.ollama_base_url}/api/chat",
+            json=payload,
+        )
+        response.raise_for_status()
+    content = response.json()["message"]["content"]
+    normalized_payload = _normalize_candidate_payload(_load_json_payload(content))
+    return _enforce_draft_safety(MeetingAnalysisPayload.model_validate(normalized_payload))
+
+
+async def analyze_transcript(transcript: str) -> tuple[str, MeetingAnalysisPayload]:
+    failures: list[str] = []
+    for model_name in _model_candidates():
+        try:
+            return model_name, await _analyze_with_ollama_model(model_name, transcript)
+        except Exception as exc:
+            failures.append(f"{model_name}: {type(exc).__name__}")
+            logger.warning("Meeting analysis failed with model %s: %s", model_name, exc)
+
+    logger.warning("All Ollama model candidates failed; using rule-based fallback: %s", failures)
+    return FALLBACK_MODEL_NAME, _fallback_analysis(transcript)

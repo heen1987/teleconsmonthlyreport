@@ -8,7 +8,7 @@ import secrets
 import time
 import uuid
 
-from fastapi import APIRouter, File, Header, HTTPException, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Header, HTTPException, Query, UploadFile
 import httpx
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
@@ -32,6 +32,7 @@ from app.schemas import (
     UploadSessionOut,
     WorkerHeartbeat,
 )
+from app.services.auth_tokens import require_internal_client, require_user_or_internal_client
 
 router = APIRouter(tags=["collection"])
 
@@ -404,7 +405,10 @@ def retry_due_platform_callbacks_once(limit: int | None = None) -> dict:
 
 
 @router.post("/upload-sessions", response_model=UploadSessionOut)
-def create_upload_session(payload: UploadSessionCreate):
+def create_upload_session(
+    payload: UploadSessionCreate,
+    _auth: dict = Depends(require_user_or_internal_client),
+):
     session_id = f"UPL-{uuid.uuid4().hex[:12]}"
     upload_token = secrets.token_urlsafe(32)
     with get_connection() as connection:
@@ -449,6 +453,7 @@ async def upload_audio_file(
     session_id: str,
     file: UploadFile = File(...),
     x_upload_token: str = Header(..., alias="X-Upload-Token"),
+    _auth: dict = Depends(require_user_or_internal_client),
 ):
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
@@ -537,7 +542,10 @@ async def upload_audio_file(
 
 
 @router.post("/audio-assets", response_model=AudioAssetOut)
-def register_audio_asset(payload: AudioAssetCreate):
+def register_audio_asset(
+    payload: AudioAssetCreate,
+    _auth: dict = Depends(require_user_or_internal_client),
+):
     asset_id = f"AUD-{uuid.uuid4().hex[:12]}"
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
@@ -601,7 +609,10 @@ def register_audio_asset(payload: AudioAssetCreate):
 
 
 @router.get("/audio-assets/{asset_id}", response_model=AudioAssetOut)
-def get_audio_asset(asset_id: str):
+def get_audio_asset(
+    asset_id: str,
+    _auth: dict = Depends(require_user_or_internal_client),
+):
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
@@ -621,7 +632,10 @@ def get_audio_asset(asset_id: str):
 
 
 @router.post("/analysis-jobs", response_model=AnalysisJobOut)
-def create_analysis_job(payload: AnalysisJobCreate):
+def create_analysis_job(
+    payload: AnalysisJobCreate,
+    _auth: dict = Depends(require_user_or_internal_client),
+):
     job_id = f"CJOB-{uuid.uuid4().hex[:12]}"
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
@@ -674,7 +688,11 @@ def create_analysis_job(payload: AnalysisJobCreate):
 
 
 @router.get("/analysis-jobs", response_model=list[AnalysisJobOut])
-def list_analysis_jobs(status: str | None = None, meeting_id: str | None = None):
+def list_analysis_jobs(
+    status: str | None = None,
+    meeting_id: str | None = None,
+    _auth: dict = Depends(require_user_or_internal_client),
+):
     query = f"""
         SELECT {CALLBACK_JOB_RETURN_COLUMNS}
         FROM collection_analysis_jobs
@@ -698,7 +716,10 @@ def list_analysis_jobs(status: str | None = None, meeting_id: str | None = None)
 
 
 @router.get("/analysis-jobs/{job_id}/events")
-def list_analysis_job_events(job_id: str):
+def list_analysis_job_events(
+    job_id: str,
+    _auth: dict = Depends(require_user_or_internal_client),
+):
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
@@ -716,7 +737,10 @@ def list_analysis_job_events(job_id: str):
 
 
 @router.get("/analysis-jobs/{job_id}", response_model=AnalysisJobOut)
-def get_analysis_job(job_id: str):
+def get_analysis_job(
+    job_id: str,
+    _auth: dict = Depends(require_user_or_internal_client),
+):
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
@@ -734,12 +758,18 @@ def get_analysis_job(job_id: str):
 
 
 @router.post("/analysis-jobs/callbacks/retry-due")
-def retry_due_platform_callbacks(limit: int = Query(default=20, ge=1, le=100)):
+def retry_due_platform_callbacks(
+    limit: int = Query(default=20, ge=1, le=100),
+    _auth: dict = Depends(require_internal_client),
+):
     return retry_due_platform_callbacks_once(limit)
 
 
 @router.post("/analysis-jobs/{job_id}/notify-platform")
-def replay_platform_notification(job_id: str):
+def replay_platform_notification(
+    job_id: str,
+    _auth: dict = Depends(require_user_or_internal_client),
+):
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
@@ -763,7 +793,7 @@ def replay_platform_notification(job_id: str):
 
 
 @router.post("/analysis-jobs/requeue-expired")
-def requeue_expired_jobs():
+def requeue_expired_jobs(_auth: dict = Depends(require_internal_client)):
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
@@ -802,7 +832,10 @@ def requeue_expired_jobs():
 
 
 @router.post("/workers/heartbeat")
-def heartbeat(payload: WorkerHeartbeat):
+def heartbeat(
+    payload: WorkerHeartbeat,
+    _auth: dict = Depends(require_internal_client),
+):
     with get_connection() as connection:
         with connection.cursor() as cursor:
             cursor.execute(
@@ -832,7 +865,10 @@ def heartbeat(payload: WorkerHeartbeat):
 
 
 @router.post("/analysis-jobs/claim", response_model=AnalysisJobOut | None)
-def claim_analysis_job(payload: ClaimJobRequest):
+def claim_analysis_job(
+    payload: ClaimJobRequest,
+    _auth: dict = Depends(require_internal_client),
+):
     lease_seconds = payload.lease_seconds or settings.default_lease_seconds
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
@@ -884,12 +920,21 @@ def claim_analysis_job(payload: ClaimJobRequest):
 
 
 @router.post("/analysis-jobs/{job_id}/start", response_model=AnalysisJobOut)
-def start_job(job_id: str, payload: JobStatusUpdate):
+def start_job(
+    job_id: str,
+    payload: JobStatusUpdate,
+    _auth: dict = Depends(require_internal_client),
+):
     return _set_job_status(job_id, payload, AnalysisJobStatus.RUNNING.value, "job_started")
 
 
 @router.post("/analysis-jobs/{job_id}/complete", response_model=AnalysisJobOut)
-def complete_job(job_id: str, payload: JobStatusUpdate):
+def complete_job(
+    job_id: str,
+    payload: JobStatusUpdate,
+    background_tasks: BackgroundTasks,
+    _auth: dict = Depends(require_internal_client),
+):
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
@@ -943,12 +988,16 @@ def complete_job(job_id: str, payload: JobStatusUpdate):
                 AnalysisJobStatus.COMPLETED.value,
                 {"model_name": payload.payload.get("model_name")},
             )
-    _notify_platform_job_completed(job)
+    background_tasks.add_task(_notify_platform_job_completed, job)
     return job
 
 
 @router.post("/analysis-jobs/{job_id}/fail", response_model=AnalysisJobOut)
-def fail_job(job_id: str, payload: JobStatusUpdate):
+def fail_job(
+    job_id: str,
+    payload: JobStatusUpdate,
+    _auth: dict = Depends(require_internal_client),
+):
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(

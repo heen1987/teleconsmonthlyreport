@@ -1108,7 +1108,13 @@ function App() {
             <Search size={16} />
             <span>업무 검색...</span>
           </div>
-          <button className="top-icon" type="button" aria-label="새로고침" onClick={() => refresh().then(() => activeView === "admin" ? loadAdminUsers() : activeView === "visual" ? loadVisualData() : undefined).catch((error) => setMessage(error.message))}>
+          <button className="top-icon" type="button" aria-label="새로고침" onClick={() => {
+            refresh().catch((e) => setMessage(e.message));
+            if (activeView === "admin") loadAdminUsers().catch((e) => setMessage(e.message));
+            if (activeView === "resources") loadVisualData().catch((e) => setMessage(e.message));
+            if (activeView === "meetings") loadProjectMeetings().catch((e) => setMessage(e.message));
+            if (activeView === "knowledge") loadKnowledgeItems().catch((e) => setMessage(e.message));
+          }}>
             <RefreshCw size={18} />
           </button>
           <button className="top-icon" type="button" aria-label="로그아웃" onClick={() => logout().catch((error) => setMessage(error.message))}>

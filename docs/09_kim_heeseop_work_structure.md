@@ -1412,6 +1412,8 @@ Implemented behavior:
 
 - `scripts/run_public_tunnels.sh` starts/reuses Cloudflare quick tunnels for
   Web, Platform API, Collection API, and Analysis Server
+- existing quick tunnel sessions are reused only after the latest public URL
+  passes a health check; stale sessions are restarted automatically
 - the Web dev server can be restarted with `VITE_API_BASE` pointing at the
   active public Platform tunnel
 - `scripts/print_public_urls.sh` prints the current tunnel URLs from
@@ -1423,6 +1425,11 @@ Implemented behavior:
 - `scripts/publish_android_apk_download.sh` publishes the APK into
   `web_client/public/downloads/` so the public Web tunnel can serve a download
   page, APK file, and JSON metadata
+
+Operational control:
+
+- set `AIPMS_PUBLIC_TUNNEL_REUSE_HEALTH_CHECK=0` only when stale quick tunnel
+  reuse must be debugged manually
 
 Code and documentation:
 
@@ -1764,6 +1771,9 @@ Implemented behavior:
 - `scripts/run_local_execution_stack.sh` starts PostgreSQL, Collection API,
   Analysis Server, Analysis Worker, Platform API, and React Web in reusable
   `screen` sessions and prints local URLs after health checks
+- reusable local service screens are kept only when the matching local health
+  URL returns HTTP 200; stale Collection, Analysis, Platform, and Web screens
+  are restarted automatically
 - React Web header now exposes `실행 허브` next to APK download and handoff
 - public refresh and smoke verification include `/run/` and
   `/run/execution.json`
@@ -2009,22 +2019,22 @@ Code and documentation:
 - `../2. 요구사항정의서/요구사항정의서.md`
 - `../2. 요구사항정의서/요구사항_추적표.md`
 
-## Seventy-fifth Implemented Item: 50-Person SW Company Demo Fixture
+## Seventy-fifth Implemented Item: 50-Person Saessak Tech Solutions Demo Fixture
 
 The local demo company model now matches the requested PMS demonstration
-scenario: 50-person SW development company, 50억 annual revenue, 15 active
-projects, and project-member based meeting distribution.
+scenario: 50-person AI and cloud B2B solution company, 50억 annual revenue,
+15 projects, and project-member based meeting distribution.
 
 Implemented behavior:
 
-- added a deterministic demo company fixture generator for `새싹SW`
-- modeled 4 divisions: 경영본부, AI연구소, 플랫폼개발본부, 서비스개발본부
-- modeled 경영본부 as 대표이사 1명 plus 경영관리팀 4명
-- modeled the three development divisions as 15 people each, 45 developers total
+- added a deterministic demo company fixture generator for `새싹테크솔루션 주식회사`
+- modeled 4 divisions: 경영본부, 연구소, 개발1본부, 개발2본부
+- modeled 10 teams with 경영본부 5명, 연구소 15명, 개발1본부 15명, 개발2본부 15명
+- modeled the development organization as 연구소 15명 plus 개발1본부 15명 plus 개발2본부 15명, 45명 total
 - modeled the position ladder as 사원, 선임, 책임, 수석, 이사
 - modeled duties as 팀장=책임급, 실장=수석급, 본부장=이사급
-- generated 15 active projects and 45 project memberships, three project
-  members per project
+- generated 15 projects and 136 project memberships from the Excel assignment
+  sheet
 - stored division, position, duty, and company metadata in human
   `resource_profiles.metadata`
 - kept meeting distribution compatible with the corrected rule because each
@@ -2249,6 +2259,341 @@ Verification target:
 - `bash scripts/smoke_screen_design_ui.sh`
 - `bash scripts/verify_mvp_static.sh`
 
+## One Hundred Ninth Implemented Item: Google Drive-Safe Verification Loop
+
+The MVP verification loop now tolerates Google Drive offline placeholder files
+and unstable Drive-hosted `node_modules` entries without weakening the required
+acceptance checks.
+
+Implemented behavior:
+
+- `scripts/verify_mvp_static.sh` skips Python source files that are detected as
+  Google Drive offline placeholders before attempting to read them
+- Platform OpenAPI validation falls back to the live local `/openapi.json`
+  endpoint when direct app import blocks on Drive placeholder files
+- direct `rg` checks no longer read the offline `backend/app/routers/meetings.py`
+  placeholder
+- added `scripts/build_web_client_static.sh` to build the Web client from a
+  temporary local directory using the cached Web dependencies
+- `scripts/doctor_local_environment.sh` avoids direct `node_modules/.bin/vite`
+  symlink stat calls under Google Drive and leaves Vite validation to the Web
+  build script
+
+Verification target:
+
+- `bash scripts/smoke_local_environment_doctor.sh`
+- `bash scripts/build_web_client_static.sh`
+- `bash scripts/verify_mvp_static.sh`
+- `bash scripts/run_continuous_acceptance_check.sh`
+
+## One Hundred Tenth Implemented Item: Local Environment Doctor Cleanup
+
+The local environment doctor now reports the current Drive-safe Web dependency
+setup accurately and does not raise cleanup-only warnings for runtime-generated
+Python caches.
+
+Implemented behavior:
+
+- `scripts/doctor_local_environment.sh` validates cached Vite under
+  `$HOME/.cache/ai-pms/web_client` instead of probing Drive-hosted
+  `web_client/node_modules`
+- the doctor now requires `scripts/build_web_client_static.sh` as the Web build
+  verification entrypoint
+- generated `__pycache__` directories are treated as runtime cache output
+- `scripts/.DS_Store` was removed from the working tree
+
+Verification target:
+
+- `bash scripts/smoke_local_environment_doctor.sh`
+- `bash scripts/verify_mvp_static.sh`
+- `bash scripts/run_continuous_acceptance_check.sh`
+
+## One Hundred Eleventh Implemented Item: Placeholder-Aware Scope Smoke
+
+The MVP scope smoke now fails fast with a clear message when a Google Drive
+source file is offline instead of hanging on `grep`.
+
+Implemented behavior:
+
+- added `scripts/check_text_marker.py` for literal present/absent text checks
+- the checker detects Drive offline placeholders by `st_blocks == 0` before
+  attempting to read file content
+- `scripts/smoke_mvp_scope_definition.sh` now uses the checker for MVP marker
+  assertions and forbidden wording guards
+
+Verification target:
+
+- `python3 scripts/check_text_marker.py present android_client/src/main/java/com/aipms/MainActivity.kt 'recordButton = button("녹음 시작")' 'recorder-first Android primary action'`
+- `bash scripts/smoke_mvp_scope_definition.sh`
+- `bash scripts/verify_mvp_static.sh`
+
+## One Hundred Twelfth Implemented Item: Pycache-Safe Static Syntax Scan
+
+The static verification Python syntax scan now avoids runtime cache directories
+before descending into the source tree, preventing Google Drive directory reads
+from blocking on `__pycache__`.
+
+Implemented behavior:
+
+- replaced `Path.rglob("*.py")` with `os.walk` in
+  `scripts/verify_mvp_static.sh`
+- skipped `__pycache__`, `.mypy_cache`, `.pytest_cache`, and `.ruff_cache`
+  directories before traversal
+- kept offline placeholder file detection for actual Python source files
+
+Verification target:
+
+- inline Python syntax-scan check
+- `bash scripts/verify_mvp_static.sh`
+
+## One Hundred Seventh Implemented Item: Android Recorder UI Copy And Dead-Click Cleanup
+
+The Android app surface has been tightened again around the recorder-first MVP
+rule. Empty profile/settings rows and visible technical connection wording were
+removed from the Compose UI, and the home quick actions now call real handlers.
+
+Implemented behavior:
+
+- removed profile menu rows with no action, including technical connection copy
+- simplified the home hero to a direct meeting-recording label
+- removed quick-action helper descriptions from the user-facing app surface
+- wired `새 녹음` to the recording handler instead of an empty click
+- wired `파일 업로드` to the meeting list surface instead of an empty click
+- replaced deprecated Compose icons/divider/border calls in `AppComposeUI.kt`
+- rebuilt and republished the public APK handoff after the Android source change
+
+Current public APK SHA256:
+
+- `85c6e0e2f47de8ad37750797fcb40b5cdaa532630bf4a4d1c6f394eb3cbcb59c`
+
+Verification target:
+
+- `bash scripts/smoke_user_facing_copy_guard.sh`
+- `bash scripts/build_android_debug.sh`
+- `AIPMS_REFRESH_BUILD_APK=1 AIPMS_REFRESH_REQUIRE_PUBLIC_SMOKE=1 bash scripts/refresh_public_handoff_bundle.sh`
+- `AIPMS_ANDROID_INSTALL_DRY_RUN=1 bash scripts/install_android_public_debug_apk.sh`
+- `bash scripts/smoke_apk_publication_freshness.sh`
+- `bash scripts/run_continuous_acceptance_check.sh`
+
+## One Hundred Eighth Implemented Item: Android File Picker Modernization
+
+The Android external audio-file upload path no longer uses deprecated
+`startActivityForResult`/`onActivityResult`. This keeps the manual file upload
+fallback while the main APK remains recorder-first.
+
+Implemented behavior:
+
+- added an Activity Result API audio picker using `ActivityResultContracts.GetContent`
+- moved external audio URI handling into `handleExternalAudioUri`
+- removed the deprecated request-code based file picker path
+- renamed legacy helper functions that collided with Kotlin property setters
+- changed APK copy steps in Android build/publish scripts to copy through a
+  temporary target and then move into place, reducing Google Drive overwrite
+  stalls
+- rebuilt and republished the public APK handoff after the Android source
+  change
+
+Current public APK SHA256:
+
+- `bf9ac62fbb7a8b6935b6e8542daaf6f1b34838301ec0ff1089a65028888567a0`
+
+Verification target:
+
+- `bash scripts/smoke_user_facing_copy_guard.sh`
+- `bash scripts/build_android_debug.sh`
+- `AIPMS_REFRESH_BUILD_APK=1 AIPMS_REFRESH_REQUIRE_PUBLIC_SMOKE=1 bash scripts/refresh_public_handoff_bundle.sh`
+- `AIPMS_ANDROID_INSTALL_DRY_RUN=1 bash scripts/install_android_public_debug_apk.sh`
+- `bash scripts/smoke_portfolio_evidence_bundle.sh`
+- `bash scripts/smoke_apk_publication_freshness.sh`
+- `bash scripts/run_continuous_acceptance_check.sh`
+
+## Ninety-fourth Implemented Item: User-Facing Copy Guard
+
+The local scaffold now has a dedicated smoke gate for the user-facing copy rule:
+app and Web screens must not expose implementation guidance, server wording,
+prompt wording, local command text, or internal connection fields.
+
+Implemented behavior:
+
+- added `scripts/smoke_user_facing_copy_guard.sh`
+- Android guard fails if `platformUrlInput`, `collectionUrlInput`, or
+  `requestedByInput` is attached to a visible view
+- Android guard scans visible labels, buttons, status text, and input hints for
+  implementation terms
+- Web guard scans visible text in the public run, handoff, download, and install
+  HTML pages
+- `scripts/smoke_screen_design_ui.sh` and `scripts/verify_mvp_static.sh` now
+  run the guard
+
+Verification target:
+
+- `bash scripts/smoke_user_facing_copy_guard.sh`
+- `bash scripts/smoke_screen_design_ui.sh`
+
+## Ninety-fifth Implemented Item: Local Environment Doctor
+
+The local scaffold now has a non-mutating environment doctor for the current
+Mac mini and Google Drive development setup.
+
+Implemented behavior:
+
+- added `scripts/doctor_local_environment.sh`
+- added `scripts/smoke_local_environment_doctor.sh`
+- records local readiness reports in `runtime/local_environment/latest_doctor.json`
+  and `runtime/local_environment/latest_doctor.md`
+- validates required project directories, Python virtual environments, command
+  availability, direct APK hash integrity, generated cache drift, and Web build
+  dependency readiness
+- classifies missing `web_client/node_modules/.bin/vite` as a warning with a
+  concrete `npm install` recovery step
+- wires the smoke into `scripts/verify_mvp_static.sh`
+
+Verification target:
+
+- `bash scripts/doctor_local_environment.sh`
+- `bash scripts/smoke_local_environment_doctor.sh`
+
+## Ninety-sixth Implemented Item: Drive-Safe Web Dependency Repair
+
+Google Drive sometimes leaves `web_client/node_modules` partially locked or
+empty during dependency installation. The Web dependency repair flow now keeps
+the install cache outside Drive and links the project folder to that cache.
+
+Implemented behavior:
+
+- added `scripts/repair_web_dependencies.sh`
+- installs Web dependencies to
+  `$AIPMS_WEB_NODE_MODULES_CACHE` or `~/.cache/ai-pms/web_client`
+- moves a broken in-Drive `web_client/node_modules` to
+  `.node_modules_broken_<timestamp>` before creating the symlink
+- updates the local environment doctor recommendation to use the repair script
+- adds the repair script to the static verification presence gate
+
+Verification target:
+
+- `bash scripts/repair_web_dependencies.sh`
+- `cd web_client && npm run build`
+- `bash scripts/smoke_local_environment_doctor.sh`
+
+## Ninety-seventh Implemented Item: Collection API Public Binding Guard
+
+The external-network path for Android recording upload now has a server-side
+binding guard. Collection API stays local by default and can be exposed through
+VPN or Cloudflare tunnel without opening raw `8200` on every interface.
+
+Implemented behavior:
+
+- `scripts/run_collection_api.sh` default bind changed to `127.0.0.1:8200`
+- `scripts/windows_run_collection_api.ps1` default bind changed to
+  `127.0.0.1:8200`
+- public interface binding requires both `AIPMS_COLLECTION_BIND_HOST=0.0.0.0`
+  and `AIPMS_COLLECTION_ALLOW_PUBLIC_BIND=1`
+- added `scripts/smoke_collection_public_binding_guard.sh`
+- static verification checks that Collection API is not currently listening on
+  `*:8200`
+- external sharing procedure now requires production-secret rotation before
+  restarting services
+
+Verification target:
+
+- `bash scripts/smoke_collection_public_binding_guard.sh`
+- `curl -i http://127.0.0.1:8200/upload-sessions`
+
+## One Hundred First Implemented Item: Platform And Analysis Public Binding Guard
+
+Platform API and the Mac mini Analysis server now use the same external-network
+binding posture as Collection API. This prevents raw `8000` and `8100` ports
+from being reachable on every network interface while still allowing
+Cloudflare/VPN tunnels to forward from local `127.0.0.1` services.
+
+Implemented behavior:
+
+- `scripts/run_platform_backend.sh` default bind changed to `127.0.0.1:8000`
+- `scripts/run_analysis_server.sh` default bind changed to `127.0.0.1:8100`
+- Windows run scripts default to local bind as well
+- public interface binding requires explicit allow flags:
+  `AIPMS_PLATFORM_ALLOW_PUBLIC_BIND=1` or
+  `AIPMS_ANALYSIS_ALLOW_PUBLIC_BIND=1`
+- added `scripts/smoke_core_api_public_binding_guard.sh`
+- continuous acceptance now fails required checks if Platform or Analysis is
+  currently listening on a public interface
+
+Verification target:
+
+- `bash scripts/smoke_core_api_public_binding_guard.sh`
+- `bash scripts/run_continuous_acceptance_check.sh`
+
+## One Hundred Fifth Implemented Item: Web Public Binding Guard
+
+The React Web dev server now follows the same external-network posture as the
+API services. Raw `3000` stays local by default, and external access is routed
+through VPN or Cloudflare tunnel URLs.
+
+Implemented behavior:
+
+- `scripts/run_local_execution_stack.sh` defaults Web to `127.0.0.1:3000`
+- `scripts/run_public_tunnels.sh` restarts Web on `127.0.0.1:3000` before
+  creating the Cloudflare tunnel
+- Windows Web run scripts use the same local default
+- `web_client/package.json` no longer defaults `npm run dev` or preview to
+  `0.0.0.0`
+- Vite is launched through `node ./node_modules/vite/bin/vite.js` so Google
+  Drive executable-bit drift on `node_modules/.bin/vite` does not block Web
+  startup
+- direct `0.0.0.0` or `::` binding is rejected unless
+  `AIPMS_WEB_ALLOW_PUBLIC_BIND=1` is explicitly set with
+  `AIPMS_WEB_BIND_HOST=0.0.0.0`
+- added `scripts/smoke_web_public_binding_guard.sh`
+- continuous acceptance now treats raw public binding on `3000` as a required
+  failure
+
+Verification target:
+
+- `bash scripts/smoke_web_public_binding_guard.sh`
+- `bash scripts/run_continuous_acceptance_check.sh`
+
+## One Hundred Sixth Implemented Item: APK Publication Freshness Guard
+
+The public APK handoff now has a fast freshness check so Android code changes
+cannot leave the tester-facing APK stale.
+
+Implemented behavior:
+
+- added `scripts/smoke_apk_publication_freshness.sh`
+- verifies the built artifact, Web download APK, Web alias APK, and direct
+  Drive APK share the same size and SHA256
+- verifies `android-apk.json`, direct Drive SHA file, direct Drive manifest,
+  execution hub manifest, public handoff package, install dry-run report, and
+  portfolio summary point at the same APK hash
+- continuous acceptance treats stale APK publication metadata as a required
+  failure
+
+Verification target:
+
+- `bash scripts/smoke_apk_publication_freshness.sh`
+- `bash scripts/run_continuous_acceptance_check.sh`
+
+## Ninety-eighth Implemented Item: Continuous Acceptance Check
+
+The ongoing 검수 loop now has a single command that checks the externally used
+service path without running a full build every time.
+
+Implemented behavior:
+
+- added `scripts/run_continuous_acceptance_check.sh`
+- writes JSON and Markdown reports under `runtime/continuous_acceptance/`
+- checks Collection raw port exposure on `8200`
+- checks Platform/Analysis raw port exposure on `8000` and `8100`
+- checks local and public unauthenticated upload creation remains blocked
+- checks wrong internal secret is rejected and valid internal secret still works
+- checks production secrets are non-default and aligned across Platform,
+  Collection, and Analysis
+- adds static verification coverage for the ongoing acceptance command
+
+Verification target:
+
+- `bash scripts/run_continuous_acceptance_check.sh`
+
 ## Ninety-sixth Implemented Item: Drive Screen-Design UI Alignment
 
 The Web and Android client surfaces were adjusted against the Google Drive
@@ -2285,7 +2630,7 @@ Implemented behavior:
 - Android active UI is now one recorder-first screen
 - side menu, tab-like screen navigation, visible benchmark copy, guide cards,
   process descriptions, and chip rows are removed
-- first section is `회의 녹음`; project, account, and server controls are below it
+- first section is `회의 녹음`; project selection and account controls are below it
 - record button remains available immediately, while upload/status still check
   login and project selection
 - screen-design smoke now guards against reintroducing Android side-menu or
@@ -2479,17 +2824,16 @@ Verification target:
 
 ## Seventy-sixth Implemented Item: Demo Company UI Surface Alignment
 
-The Web and Android demo surfaces now show the seeded 50-person SW company
+The Web demo surfaces now show the seeded 50-person 새싹테크솔루션 company
 context instead of the earlier generic MEETFLOW-only placeholders.
 
 Implemented behavior:
 
-- changed the authenticated Web header to `새싹SW PMS`
-- added explicit 50-person SW company copy to the Web workspace
-- changed browser-frame and sidebar branding to `새싹SW`
-- changed the Android visual logo text to `새싹SW`
-- changed the admin dashboard summary to show 50명, 개발 45명, 연매출 50억,
-  4개 본부, and 15개 프로젝트
+- changed the authenticated Web header to `새싹테크솔루션`
+- added explicit 50-person AI and cloud B2B company copy to the Web workspace
+- changed browser-frame and sidebar branding to `새싹테크솔루션`
+- changed the admin dashboard summary to show 50명, 개발인원 45명, 연매출
+  50억, 4개 본부, and 15개 프로젝트
 - kept the corrected project-only meeting flow and project-member automatic
   distribution markers in the app screen preview
 - extended screen-design smoke markers to check the demo company context
@@ -2497,7 +2841,7 @@ Implemented behavior:
 Verification target:
 
 - `bash scripts/smoke_screen_design_ui.sh` verifies the Web and Android source
-  markers for the 새싹SW demo company surface
+  markers for the 새싹테크솔루션 demo company surface
 
 Code and documentation:
 
@@ -2731,3 +3075,272 @@ Verification target:
 
 - `bash scripts/smoke_screen_design_ui.sh`
 - `bash scripts/verify_mvp_static.sh`
+
+## One Hundred Thirteenth Implemented Item: Android Local Build Warning Cleanup
+
+The Android build environment now uses the Mac mini SDK path directly and no
+longer keeps large generated JVM heap dumps inside the Google Drive project
+folder.
+
+Implemented behavior:
+
+- corrected `android_client/local.properties` from a stale Windows Android SDK
+  path to `/opt/homebrew/share/android-commandlinetools`
+- removed generated `java_pid*.hprof` heap dump files from `android_client`
+- removed generated `.DS_Store` metadata from the project root and
+  `android_client`
+- removed low-risk deprecated Android Gradle flags that were not required for
+  the current debug APK build
+- kept the Kotlin built-in migration warnings as an explicit follow-up item
+  because removing `android.builtInKotlin=false` and `android.newDsl=false`
+  requires a separate AGP 9 migration pass
+
+Verification target:
+
+- `bash -n scripts/build_android_debug.sh scripts/verify_mvp_static.sh scripts/run_continuous_acceptance_check.sh`
+- `bash scripts/build_android_debug.sh`
+- `bash scripts/smoke_local_environment_doctor.sh`
+- `bash scripts/verify_mvp_static.sh`
+- `bash scripts/run_continuous_acceptance_check.sh`
+
+## One Hundred Fourteenth Implemented Item: Android Dependency Constraint Warning Cleanup
+
+The Android debug build no longer emits the repeated dependency constraints
+import-performance warning from AGP 9.
+
+Implemented behavior:
+
+- changed `android.dependency.useConstraints` to `false` in
+  `android_client/gradle.properties`
+- avoided the deprecated
+  `android.dependency.excludeLibraryComponentsFromConstraints=true` setting
+  after the build log identified it as deprecated
+- confirmed that the debug APK still builds successfully with the updated
+  dependency constraint setting
+- kept the remaining AGP 9 Kotlin built-in and legacy Variant API warnings as
+  a separate migration item
+
+Verification target:
+
+- `bash scripts/build_android_debug.sh`
+- `bash scripts/verify_mvp_static.sh`
+- `bash scripts/run_continuous_acceptance_check.sh`
+
+## One Hundred Fifteenth Implemented Item: Android AGP 9 Kotlin Built-In Migration
+
+The Android debug build now uses AGP 9 built-in Kotlin support and no longer
+depends on the deprecated standalone `org.jetbrains.kotlin.android` plugin.
+
+Implemented behavior:
+
+- validated the migration first in a temporary Android project copy
+- removed the standalone `org.jetbrains.kotlin.android` plugin from
+  `android_client/build.gradle.kts`
+- removed `android.builtInKotlin=false` and `android.newDsl=false` from
+  `android_client/gradle.properties`
+- eliminated the AGP 9 Kotlin built-in deprecation warning
+- eliminated the legacy `applicationVariants`, `testVariants`, and
+  `unitTestVariants` warnings during debug APK build
+- kept `android.overridePathCheck=true` because the project is built from a
+  Google Drive path and this remains a controlled local path override
+
+Verification target:
+
+- temporary AGP 9 migration probe build
+- `bash scripts/build_android_debug.sh`
+- `bash scripts/verify_mvp_static.sh`
+- `bash scripts/run_continuous_acceptance_check.sh`
+
+## One Hundred Sixteenth Implemented Item: Public External Flow Verification
+
+The external-network flow is now verified end to end across the Android entry
+contract, Collection API, Mac mini Analysis Worker, Platform API, and Web/App
+review surfaces.
+
+Implemented behavior:
+
+- added `scripts/smoke_public_external_flow.sh` to log in through the public
+  Platform API, create a project and meeting, upload an audio asset through the
+  public Collection API, create an analysis job, wait for Worker completion,
+  verify Platform callback success, and confirm the Web review package data
+- decoupled Collection API job completion from the Platform callback by moving
+  the callback notification to a FastAPI background task
+- made the Analysis Worker Collection API request timeout configurable through
+  `COLLECTION_REQUEST_TIMEOUT_SECONDS`
+- changed the public Web tunnel startup to run Vite from a `/tmp` runtime copy
+  with cached `node_modules`, avoiding Google Drive file-watcher stalls
+- regenerated the public APK, installation dry-run report, and portfolio
+  evidence summary so every published APK hash matches the current artifact
+- confirmed raw service ports stay bound to `127.0.0.1` while public access is
+  provided through Cloudflare tunnel URLs
+
+Verification target:
+
+- `AIPMS_REFRESH_BUILD_APK=1 AIPMS_REFRESH_REQUIRE_PUBLIC_SMOKE=1 bash scripts/refresh_public_handoff_bundle.sh`
+- `bash scripts/smoke_public_external_flow.sh`
+- `AIPMS_ANDROID_INSTALL_DRY_RUN=1 bash scripts/install_android_public_debug_apk.sh`
+- `bash scripts/export_portfolio_evidence_bundle.sh`
+- `bash scripts/smoke_apk_publication_freshness.sh`
+- `bash scripts/run_continuous_acceptance_check.sh`
+
+## One Hundred Seventeenth Implemented Item: Continuous External Flow Evidence Gate
+
+The continuous acceptance check now validates the latest public E2E evidence
+instead of only checking public health endpoints.
+
+Implemented behavior:
+
+- `scripts/run_continuous_acceptance_check.sh` reads
+  `runtime/public_handoff/latest_external_flow_check.json`
+- the gate verifies that the latest public flow completed, Platform callback
+  succeeded, the meeting is in `review_required`, and review data counts are
+  present
+- the gate compares the Web, Platform, Collection, and Analysis URLs in the
+  latest E2E evidence against the currently active tunnel URLs
+- `AIPMS_CONTINUOUS_REQUIRE_EXTERNAL_FLOW=0` can downgrade this check to a
+  warning for local-only maintenance runs
+
+Verification target:
+
+- `bash -n scripts/run_continuous_acceptance_check.sh`
+- `bash scripts/run_continuous_acceptance_check.sh`
+
+## One Hundred Eighteenth Implemented Item: Analysis Server Direct 8100 Inbound Runtime
+
+The Mac mini Analysis Server can now be intentionally run on direct inbound
+port `8100` while keeping the default run-script policy guarded.
+
+Implemented behavior:
+
+- configured `analysis_server/.env` with `AIPMS_ANALYSIS_BIND_HOST=0.0.0.0`,
+  `AIPMS_ANALYSIS_PORT=8100`, and `AIPMS_ANALYSIS_ALLOW_PUBLIC_BIND=1`
+- added the analysis bind settings to `analysis_server/app/core/config.py` so
+  Pydantic accepts the runtime `.env` keys
+- restarted the Analysis Server screen session and confirmed it listens on
+  `*:8100`
+- allowed the active Homebrew Python executable in macOS Application Firewall
+- updated `scripts/smoke_core_api_public_binding_guard.sh` so explicit
+  Analysis public binding is accepted only when the runtime allow flag is set
+
+Verification target:
+
+- `python3 -m py_compile analysis_server/app/core/config.py`
+- `curl http://127.0.0.1:8100/health`
+- `curl http://192.168.219.103:8100/health`
+- `/usr/libexec/ApplicationFirewall/socketfilterfw --getappblocked /opt/homebrew/Cellar/python@3.12/3.12.13_4/Frameworks/Python.framework/Versions/3.12/Resources/Python.app/Contents/MacOS/Python`
+- `bash scripts/smoke_core_api_public_binding_guard.sh`
+- `bash scripts/run_continuous_acceptance_check.sh`
+
+## One Hundred Nineteenth Implemented Item: Public Runtime Watchdog LaunchAgent
+
+Mac mini public runtime is now guarded by a lightweight macOS LaunchAgent.
+
+Implemented behavior:
+
+- `scripts/public_runtime_watchdog.sh` verifies local Web, Platform,
+  Collection, and Analysis health and starts missing services when possible.
+- The same watchdog verifies public Web, run hub, APK download, Platform,
+  Collection, and Analysis URLs and writes the latest public runtime summary.
+- `scripts/install_launchd_public_runtime.sh` installs the watchdog as
+  `com.aipms.public-runtime` with `StartInterval=300` and `RunAtLoad=true`.
+- Launchd execution uses the local mirror root and writes operational state
+  under `~/.aipms/public-runtime-state` to avoid Google Drive File Provider and
+  macOS LaunchAgent write-permission failures.
+- Current quick `trycloudflare.com` URLs are kept alive by health checks, but
+  long-running fixed URLs still require Cloudflare named tunnel and DNS.
+
+Verification target:
+
+- `bash scripts/install_launchd_public_runtime.sh --load`
+- `cat ~/.aipms/public-runtime-state/runtime/always_on/latest_public_runtime.json`
+- `bash scripts/run_continuous_acceptance_check.sh`
+
+## One Hundred Twentieth Implemented Item: Cross-Server Connectivity Doctor
+
+The project now has a first-pass operating rule and check script for using a
+second PC without splitting PMS state.
+
+Implemented behavior:
+
+- `docs/29_analysis_failover_topology.md` defines the safe cross-server mode:
+  one primary Platform server plus optional secondary Collection/Analysis
+  runtime.
+- The guide explicitly blocks active-active Platform usage for MVP because it
+  would split meeting, approval, distribution, task, and risk state.
+- `scripts/doctor_cross_server_connectivity.sh` checks the current primary
+  Platform, Collection, and Web URLs from the public runtime summary.
+- The same doctor can check an optional secondary host with
+  `AIPMS_SECONDARY_HOST` and can require it with `AIPMS_EXPECT_SECONDARY=1`.
+- Reports are written to `runtime/cross_server/latest_report.json` and
+  `runtime/cross_server/latest_report.md`.
+
+Verification target:
+
+- `bash -n scripts/doctor_cross_server_connectivity.sh`
+- `bash scripts/doctor_cross_server_connectivity.sh`
+
+## One Hundred Twenty-first Implemented Item: Cloudflare DNS Origin Doctor
+
+The project now has a direct `A` record origin readiness check for connecting a
+Cloudflare proxied domain to the Mac mini public IP.
+
+Implemented behavior:
+
+- `scripts/doctor_cloudflare_dns_origin.sh` captures the current public IP,
+  Mac mini LAN IP, local Web/API health, local `80`/`443` listener state, and
+  optional domain health.
+- `docs/30_cloudflare_dns_origin_runbook.md` documents the DNS records, router
+  port-forwarding, reverse proxy shape, acceptance criteria, and security notes.
+- The doctor supports `AIPMS_EXPECT_ORIGIN_PROXY=1` to require local `80`/`443`
+  and `AIPMS_EXPECT_DOMAIN_LIVE=1` to require configured domain routes.
+
+Verification target:
+
+- `bash -n scripts/doctor_cloudflare_dns_origin.sh`
+- `bash scripts/doctor_cloudflare_dns_origin.sh`
+
+## One Hundred Twenty-second Implemented Item: Domainless GitHub Pages Web Deploy
+
+The fixed-domain deployment path has been removed. The Web client now targets
+the GitHub Pages default project URL, while API endpoints are supplied through
+deployment variables.
+
+Implemented behavior:
+
+- `.github/workflows/deploy-web-pages.yml` builds `web_client` on push and
+  deploys the `dist` artifact to GitHub Pages.
+- Custom Web `CNAME` assumptions were removed from the deployment path.
+- `web_client/vite.config.ts` accepts `VITE_BASE_PATH` so the build can target
+  the GitHub Pages project subpath.
+- `docs/19_cloudflare_named_tunnel_plan.md` documents variable-based API tunnel
+  hostnames instead of hard-coded domains.
+- `docs/31_git_web_deploy_runbook.md` defines the split between GitHub Pages
+  Web hosting and Mac mini API hosting.
+
+Verification target:
+
+- `bash scripts/smoke_github_pages_cors.sh http://127.0.0.1:8000`
+- `cd web_client && VITE_API_BASE=<platform-api-public-url> VITE_BASE_PATH=/llm-meeting-assistant/ npm run build`
+
+## One Hundred Twenty-fourth Implemented Item: Mac mini Self-hosted Runner Deploy
+
+The repository now includes a GitHub Actions workflow for deploying the service
+stack through a Mac mini self-hosted runner.
+
+Implemented behavior:
+
+- `.github/workflows/deploy-mac-mini.yml` runs on a self-hosted macOS runner
+  for service-path pushes.
+- `scripts/deploy_mac_mini_from_runner.sh` syncs checked-out code to the Mac
+  mini runtime root while preserving `.env`, `.venv`, `storage`, `runtime`, and
+  `logs`.
+- The deploy script installs backend, collection, analysis, and Web
+  dependencies, applies schemas, restarts named `screen` service sessions, and
+  reloads the public runtime LaunchAgent.
+- `docs/32_self_hosted_runner_deploy_runbook.md` documents runner
+  registration, repository variables, and manual dry-run commands.
+
+Verification target:
+
+- `bash -n scripts/deploy_mac_mini_from_runner.sh`
+- `bash scripts/deploy_mac_mini_from_runner.sh --check`

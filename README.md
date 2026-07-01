@@ -185,12 +185,35 @@ bash scripts/run_analysis_worker_loop.sh
 bash scripts/run_platform_backend.sh
 ```
 
+External-network raw-port policy:
+
+- `scripts/run_platform_backend.sh` binds to `127.0.0.1:8000` by default.
+- `scripts/run_collection_api.sh` binds to `127.0.0.1:8200` by default.
+- `scripts/run_analysis_server.sh` binds to `127.0.0.1:8100` by default.
+- `scripts/run_local_execution_stack.sh` binds the Web dev server to
+  `127.0.0.1:3000` by default.
+- Use VPN or Cloudflare tunnel from local ports for external Android/Web access.
+- Direct public/LAN binding is blocked unless explicitly enabled with
+  the matching bind and allow variables:
+  `AIPMS_PLATFORM_BIND_HOST=0.0.0.0 AIPMS_PLATFORM_ALLOW_PUBLIC_BIND=1`,
+  `AIPMS_COLLECTION_BIND_HOST=0.0.0.0 AIPMS_COLLECTION_ALLOW_PUBLIC_BIND=1`,
+  `AIPMS_ANALYSIS_BIND_HOST=0.0.0.0 AIPMS_ANALYSIS_ALLOW_PUBLIC_BIND=1`,
+  or `AIPMS_WEB_BIND_HOST=0.0.0.0 AIPMS_WEB_ALLOW_PUBLIC_BIND=1`.
+- Before external sharing, rotate production secrets with
+  `bash scripts/generate_prod_secrets.sh` and restart Platform, Collection,
+  and Analysis services.
+
 Start the local web/app execution stack in reusable `screen` sessions:
 
 ```bash
 cd ai_pms_bootstrap
 bash scripts/run_local_execution_stack.sh
 ```
+
+The local stack runner reuses existing service screens only when the matching
+local health URL still returns HTTP 200. If a reusable service screen is stale,
+the runner restarts that session. Set `AIPMS_LOCAL_STACK_REUSE_HEALTH_CHECK=0`
+only for manual debugging of screen reuse.
 
 Run the React Web client:
 
@@ -237,9 +260,8 @@ cd ai_pms_bootstrap
 bash scripts/print_lan_urls.sh
 ```
 
-The Web client uses the current browser host as its default Platform API host,
-so opening `http://<Mac-mini-LAN-IP>:3000` will call
-`http://<Mac-mini-LAN-IP>:8000`.
+Direct LAN access requires explicit raw-port binding for both Web and Platform.
+For routine external testing, use `bash scripts/run_public_tunnels.sh` instead.
 
 Open the Android client project after installing Android Studio/JDK:
 
@@ -283,6 +305,12 @@ cd ai_pms_bootstrap
 bash scripts/run_public_tunnels.sh
 bash scripts/refresh_public_handoff_bundle.sh
 ```
+
+`scripts/run_public_tunnels.sh` reuses an existing quick tunnel only when the
+latest logged public URL still returns HTTP 200. If a tunnel session is stale,
+the script restarts that tunnel and prints a fresh URL. Set
+`AIPMS_PUBLIC_TUNNEL_REUSE_HEALTH_CHECK=0` only when you need legacy reuse
+behavior for debugging.
 
 The public execution hub is served at `/run/` and links to Web, APK,
 Platform, Collection, Analysis, handoff, and the execution JSON manifest.
@@ -400,8 +428,24 @@ Static MVP verification:
 
 ```bash
 cd ai_pms_bootstrap
+bash scripts/doctor_local_environment.sh
+bash scripts/repair_web_dependencies.sh  # if the doctor reports a Web dependency warning
 bash scripts/verify_mvp_static.sh
 ```
+
+Continuous external-operation acceptance check:
+
+```bash
+cd ai_pms_bootstrap
+bash scripts/run_continuous_acceptance_check.sh
+```
+
+The command writes `runtime/continuous_acceptance/latest_report.json` and
+`runtime/continuous_acceptance/latest_report.md`. It verifies that Collection
+API is not raw-public on `8200`, Platform/Analysis raw API ports are not
+public-bound, unauthenticated upload creation is blocked locally and through
+the public tunnel, and production Collection secrets remain aligned across
+Platform, Collection, and Analysis.
 
 ## Quick Start
 

@@ -36,10 +36,32 @@ export const API_BASE =
   import.meta.env.VITE_API_BASE ??
   `${window.location.protocol}//${window.location.hostname}:8000`;
 
+// ── 401 핸들러 레지스트리 ───────────────────────
+/**
+ * 401 Unauthorized 응답 수신 시 호출될 핸들러를 등록한다.
+ * useAuth.ts에서 마운트 시 등록하고 언마운트 시 해제한다.
+ *
+ * 반환값: 핸들러 해제 함수 (cleanup용)
+ */
+type UnauthorizedHandler = () => void;
+const _unauthorizedHandlers = new Set<UnauthorizedHandler>();
+
+export function registerUnauthorizedHandler(handler: UnauthorizedHandler): () => void {
+  _unauthorizedHandlers.add(handler);
+  return () => _unauthorizedHandlers.delete(handler);
+}
+
+function _notifyUnauthorized(): void {
+  _unauthorizedHandlers.forEach((h) => {
+    try { h(); } catch { /* 핸들러 오류 무시 */ }
+  });
+}
+
 // ── 핵심 fetch 래퍼 ────────────────────────────
 /**
  * 공통 API 호출 함수.
- * - 401/403/4xx/5xx 모두 Error를 throw합니다.
+ * - 401 응답 시 등록된 핸들러(자동 로그아웃 등)를 먼저 호출한 뒤 Error를 throw합니다.
+ * - 403/4xx/5xx 모두 Error를 throw합니다.
  * - accessToken이 없으면 Authorization 헤더를 붙이지 않습니다.
  */
 export async function api<T>(
@@ -58,6 +80,7 @@ export async function api<T>(
   });
 
   if (!response.ok) {
+    if (response.status === 401) _notifyUnauthorized();
     throw new Error(`${response.status} ${await response.text()}`);
   }
   return response.json() as Promise<T>;

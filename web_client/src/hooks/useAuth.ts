@@ -3,8 +3,8 @@
 // App 컴포넌트에서 인증 관련 상태와 로직을 분리합니다.
 // ─────────────────────────────────────────────
 
-import { useEffect, useState } from "react";
-import { authApi } from "../api/client";
+import { useEffect, useRef, useState } from "react";
+import { authApi, registerUnauthorizedHandler } from "../api/client";
 import type { AuthSession, AuthView, User } from "../types";
 
 const AUTH_STORAGE_KEY = "ai-pms-auth";
@@ -34,6 +34,20 @@ export function useAuth() {
   const [authChecked, setAuthChecked] = useState(false);
   const [passwordChangeRequired, setPasswordChangeRequired] = useState(false);
   const [authView, setAuthView] = useState<AuthView>("login");
+
+  // ── 401 자동 세션 만료 처리 ──────────────────────────────────────────────
+  // 앱 전역의 모든 api() 호출에서 401이 반환되면 자동으로 로그아웃 처리한다.
+  // setAuth/setPasswordChangeRequired는 useState setter로 참조 안정성이 보장됨.
+  const setAuthRef = useRef(setAuth);
+  const setPcrRef = useRef(setPasswordChangeRequired);
+  useEffect(() => {
+    const unregister = registerUnauthorizedHandler(() => {
+      clearStoredAuth();
+      setAuthRef.current(null);
+      setPcrRef.current(false);
+    });
+    return unregister;
+  }, []); // 마운트 시 한 번만 등록
 
   // 앱 시작 시 저장된 토큰 검증
   useEffect(() => {
@@ -81,14 +95,17 @@ export function useAuth() {
 
   async function changePassword(currentPassword: string, newPassword: string) {
     if (!auth) throw new Error("로그인이 필요합니다.");
+    const oldToken = auth.accessToken;
     await authApi.changePassword(
       {
         employee_no: auth.user.employee_no,
         current_password: currentPassword,
         new_password: newPassword,
       },
-      auth.accessToken,
+      oldToken,
     );
+    // 기존 토큰 revoke (best-effort — 실패해도 재로그인 진행)
+    await authApi.logout(oldToken).catch(() => undefined);
     // 비밀번호 변경 후 새 토큰으로 재로그인
     const result = await authApi.login({
       employee_no: auth.user.employee_no,

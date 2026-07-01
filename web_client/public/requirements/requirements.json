@@ -2,7 +2,7 @@
   "kind": "requirements_documents",
   "project": "AI-PMS",
   "version": "v0.2",
-  "published_at": "2026-06-30T00:20:25Z",
+  "published_at": "2026-06-30T23:54:56Z",
   "title": "AI-PMS 기반 회의·업무·지식 통합관리 플랫폼 요구사항 정의서",
   "source_paths": {
     "docx": "/Users/ppp/Library/CloudStorage/GoogleDrive-heen1987@gmail.com/내 드라이브/새싹교육_프로젝트/새싹교육_프로젝트 1/2. 요구사항정의서/AI-PMS 기반 회의·업무·지식 통합관리 플랫폼 요구사항 정의서_v0.2.docx",
@@ -12,7 +12,7 @@
     "docx": {
       "file_name": "AI-PMS-requirements-v0.2.docx",
       "path": "/Users/ppp/Library/CloudStorage/GoogleDrive-heen1987@gmail.com/내 드라이브/새싹교육_프로젝트/새싹교육_프로젝트 1/ai_pms_bootstrap/web_client/public/requirements/AI-PMS-requirements-v0.2.docx",
-      "sha256": "bdfcc842eb898a61cfaccec1a30e5df0501b4082fa12f236ff23f03d96aa994d",
+      "sha256": "582199c88784645effbe63f6c62f3af4c01124847ede703d1253db785ffe9674",
       "size_bytes": 49852
     },
     "markdown": {

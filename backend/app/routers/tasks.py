@@ -11,6 +11,8 @@ from app.services.auth_tokens import require_active_user
 
 router = APIRouter(prefix="/tasks", tags=["tasks"], dependencies=[Depends(require_active_user)])
 
+ALLOWED_TASK_STATUSES = {"todo", "in_progress", "on_hold", "done", "completed", "closed", "rejected", "cancelled"}
+
 
 @router.get("", response_model=list[TaskOut])
 def list_tasks(project_id: str | None = None):
@@ -32,7 +34,16 @@ def list_tasks(project_id: str | None = None):
 
 
 @router.patch("/{task_id}/status", response_model=TaskOut)
-def update_task_status(task_id: str, status: str):
+def update_task_status(
+    task_id: str,
+    status: str,
+    current_user: dict = Depends(require_active_user),
+):
+    if status not in ALLOWED_TASK_STATUSES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid status '{status}'. Allowed values: {sorted(ALLOWED_TASK_STATUSES)}",
+        )
     with get_connection() as connection:
         with connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
@@ -46,8 +57,16 @@ def update_task_status(task_id: str, status: str):
                 (status, task_id),
             )
             row = cursor.fetchone()
-    if row is None:
-        raise HTTPException(status_code=404, detail="Task not found")
+            if row is None:
+                raise HTTPException(status_code=404, detail="Task not found")
+            cursor.execute(
+                """
+                INSERT INTO audit_logs
+                    (actor_user_id, action_type, target_table, target_id, after_value)
+                VALUES (%s, 'update_task_status', 'tasks', %s, %s)
+                """,
+                (current_user["user_id"], task_id, Jsonb({"status": status})),
+            )
     return row
 
 

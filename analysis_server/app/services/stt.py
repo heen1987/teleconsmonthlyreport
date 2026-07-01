@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 from urllib.parse import unquote, urlparse
@@ -11,12 +12,22 @@ from app.core.config import settings
 
 SUPPORTED_TEXT_SUFFIXES = {".txt", ".md", ".vtt", ".srt"}
 WHISPER_NATIVE_AUDIO_SUFFIXES = {".wav"}
+WINDOWS_DRIVE_PATH_RE = re.compile(r"^[A-Za-z]:[\\/]")
+WINDOWS_FILE_URI_PATH_RE = re.compile(r"^/[A-Za-z]:")
 
 
 def storage_uri_to_path(storage_uri: str) -> Path:
+    if WINDOWS_DRIVE_PATH_RE.match(storage_uri):
+        return Path(storage_uri)
+
     parsed = urlparse(storage_uri)
     if parsed.scheme == "file":
-        return Path(unquote(parsed.path))
+        path_text = unquote(parsed.path)
+        if parsed.netloc:
+            return Path(f"//{parsed.netloc}{path_text}")
+        if WINDOWS_FILE_URI_PATH_RE.match(path_text):
+            path_text = path_text[1:]
+        return Path(path_text)
     if parsed.scheme:
         raise RuntimeError(f"Unsupported audio storage URI scheme: {parsed.scheme}")
     return Path(storage_uri)

@@ -8,6 +8,7 @@ from app.db.session import get_connection
 from app.domain.statuses import MeetingStatus, MinutesStatus
 from app.services.auth_tokens import require_active_user
 from app.services.knowledge_index import index_approved_meeting_analysis
+from app.services.project_access import ensure_project_access
 
 router = APIRouter(prefix="/approvals", tags=["approvals"])
 
@@ -24,17 +25,19 @@ def approve_meeting_analysis(
                 SELECT ma.meeting_id, m.project_id, ma.result_json
                 FROM meeting_analyses ma
                 JOIN meetings m ON m.meeting_id = ma.meeting_id
-                WHERE ma.analysis_id = %s AND ma.status = 'draft'
+                WHERE ma.analysis_id = %s AND ma.status IN ('draft', 'review_required')
+                FOR UPDATE
                 """,
                 (analysis_id,),
             )
             row = cursor.fetchone()
             if row is None:
-                raise HTTPException(status_code=404, detail="Draft analysis not found")
+                raise HTTPException(status_code=404, detail="Approvable analysis not found")
 
             result = row["result_json"]
             project_id = row["project_id"]
             meeting_id = row["meeting_id"]
+            ensure_project_access(cursor, project_id, current_user)
             created_task_count = 0
             created_decision_count = 0
             created_resource_demand_count = 0

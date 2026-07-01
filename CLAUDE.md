@@ -1,6 +1,6 @@
 # AI-PMS Bootstrap — CLAUDE.md
 
-> **AI 코딩 도구 전용 프로젝트 지침서.**
+> **AI 코딩 도구 전용 프로젝트 지침서.**  
 > Claude Code, Codex, Cursor, Copilot 등 모든 AI 어시스턴트는 이 파일을 먼저 읽고 작업하세요.
 
 ---
@@ -9,7 +9,7 @@
 
 **프로젝트명:** 로컬 LLM 기반 AI-PMS 및 회의정보 지능화 모듈
 
-회의 음성 녹음 → STT/LLM 분석 → 회의록 검토·승인 → PMS 반영 파이프라인을 구현하는 PoC.
+회의 음성 녹음 → STT/LLM 분석 → 회의록 검토·승인 → PMS 반영 파이프라인을 구현하는 PoC.  
 모든 데이터는 `Project_ID` 를 중심 키로 연결된다.
 
 ### 서비스 구성
@@ -17,10 +17,11 @@
 | 서비스 | 경로 | 역할 | 기본 포트 |
 |---|---|---|---|
 | Platform API | `backend/` | 사용자·프로젝트·회의·승인·PMS 반영 | 8000 |
-| Collection API | `collection_api/` | 업로드 세션·음성 파일·분석 job | 8200 |
-| Analysis Worker | `analysis_server/` | STT(Whisper.cpp)·LLM(Ollama) | 8100 |
+| Collection & Analysis | `collection_api/` | 업로드·분석 job·STT(Whisper)·LLM(Ollama) | 8200 |
 | React Web | `web_client/` | 회의록 검토·승인·관리자 콘솔 | 3000 |
 | Android App | `android_client/` | 녹음·업로드·상태 확인 | — |
+
+> ⚠️ `analysis_server/`는 **Deprecated**. STT·LLM 처리는 `collection_api/` 내 asyncio 백그라운드 워커로 통합됨.
 
 ---
 
@@ -90,12 +91,15 @@ ai_pms_bootstrap/
 ├── android_client/
 │   └── src/main/java/com/aipms/
 │       ├── MainActivity.kt       # 단일 Activity (MVVM 분리 예정)
-│       ├── client/               # KtorAiPmsApiClient, Repository
-│       └── recording/            # AndroidAudioRecorder
+│       ├── client/               # KtorAiPmsApiClient, AiPmsContracts, Repository
+│       └── recording/            # SegmentedRecorder (10분 자동분할·자동업로드)
 │
 ├── collection_api/               # Platform API와 동일한 구조
 ├── analysis_server/              # Ollama/Whisper 연동 서버
-└── scripts/                      # 실행·빌드·스모크 테스트 스크립트
+└── scripts/
+    ├── generate_prod_secrets.sh          # Mac mini용 프로덕션 시크릿 생성
+    ├── windows_generate_prod_secrets.ps1 # Windows용 프로덕션 시크릿 생성
+    └── ...                               # 실행·빌드·스모크 테스트 스크립트
 ```
 
 ---
@@ -103,6 +107,10 @@ ai_pms_bootstrap/
 ## 4. 실행 방법
 
 ```bash
+# ⚠️ 외부 네트워크 최초 배포 전: 프로덕션 시크릿 생성 (Mac mini)
+bash scripts/generate_prod_secrets.sh
+# → 3개 .env 파일 자동 업데이트 후 3개 서비스 재시작 필요
+
 # 서비스 전체 시작 (Mac mini 기준)
 cd ai_pms_bootstrap
 bash scripts/run_postgres.sh
@@ -127,12 +135,17 @@ Google Drive 경로에서는 `node_modules` 잠금이 발생할 수 있으므로
 ```powershell
 cd C:\Users\김희섭\dev\ai_pms_bootstrap
 
+# ⚠️ 외부 네트워크 최초 배포 전: 프로덕션 시크릿 생성 (Windows)
+powershell -ExecutionPolicy Bypass -File .\scripts\windows_generate_prod_secrets.ps1
+# → 생성된 시크릿을 Mac mini .env 파일에도 동일하게 복사해야 함
+
 # PostgreSQL
 docker compose up -d db
 
 # Platform API / Analysis API / Collection API
 powershell -ExecutionPolicy Bypass -File .\scripts\windows_run_platform_backend.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\windows_run_analysis_server.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\windows_run_analysis_worker_loop.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\windows_run_collection_api.ps1
 
 # React Web
@@ -240,15 +253,22 @@ private fun showScreen(screen: AppScreen) {
 ## 8. 주요 데이터 흐름
 
 ```
-Android 녹음
-  → POST /collection/upload-sessions       (Collection API)
+Android 녹음 (SegmentedRecorder — 10분 자동분할)
+  [녹음 시작 시]
+  → POST /meetings                          (Platform API — meeting_id 생성)
+  [10분마다 세그먼트 완성 시 자동 반복]
+  → POST /collection/upload-sessions        (Collection API)
   → PUT  /collection/upload-sessions/{id}/file
-  → POST /collection/analysis-jobs         (job 생성)
+  → POST /collection/analysis-jobs          (job 생성, meeting_id 연결)
+  [녹음 중 백그라운드에서 반복]
   → Mac mini Worker: GET  /collection/analysis-jobs/next (pull)
   → Mac mini Worker: STT + LLM 분석
   → Mac mini Worker: POST /collection/analysis-jobs/{id}/complete
-  → Collection → Platform callback: POST /internal/v1/analysis-results
-  → Platform: meeting_analyses 테이블에 초안 저장
+  → Collection → Platform callback: POST /integrations/collection/jobs/{id}/complete
+  → Platform: meeting_analyses 테이블에 세그먼트별 초안 저장 (하나의 meeting에 N개 분석)
+
+  외부 파일 업로드 (uploadButton 탭)
+  → 파일 선택 → POST /meetings → 위 흐름과 동일
 
 Web 검토
   → GET  /meetings/{id}/review-package
@@ -267,11 +287,11 @@ Web 검토
 | DB 호출 async 전환 | `backend/app/db/session.py` | 🟡 중간 |
 | 라우트별 화면/상태 분리 | `web_client/src/AppRouter.tsx`, `web_client/src/main.tsx` | 🟡 중간 |
 | App 컴포넌트 분리 | `web_client/src/main.tsx` | 🟡 중간 |
-| client() 싱글턴화 | `android_client/.../MainActivity.kt` | 🟡 중간 |
+| onActivityResult → ActivityResultLauncher 마이그레이션 | `android_client/.../MainActivity.kt` | 🟡 중간 |
+| MeetingUploadRepository 업로드 실패 시 orphan 세션/에셋 정리 | `android_client/.../client/` | 🟡 중간 |
 | Android MVVM 적용 | `android_client/.../MainActivity.kt` | 🟢 낮음 |
 | Android XML 레이아웃 전환 | `android_client/` | 🟢 낮음 |
 | Jetpack Compose 전환 | `android_client/` | 🟢 낮음 |
-| rate limiting | `backend/app/routers/users.py` | 🟡 중간 |
 | token refresh 로직 | `web_client/`, `android_client/` | 🟡 중간 |
 
 ---
@@ -337,4 +357,7 @@ bash scripts/verify_mvp_static.sh
 | `AIPMS_COLLECTION_BASE_URL` | Android `BuildConfig` | Collection API URL |
 | `VITE_API_BASE` | `web_client/.env` | React에서 API_BASE 오버라이드 |
 | `OLLAMA_MODEL` | `analysis_server/.env` | 사용할 LLM 모델명 |
+| `OLLAMA_TIMEOUT_SECONDS` | `analysis_server/.env` | Ollama HTTP 타임아웃 (기본 180) |
 | `WHISPER_MODEL_PATH` | `analysis_server/.env` | Whisper 모델 경로 |
+| `COLLECTION_INTERNAL_API_SECRET` | `collection_api/.env`, `analysis_server/.env` | Worker ↔ Collection 인증 시크릿 |
+| `PLATFORM_CALLBACK_SECRET` | `collection_api/.env`, `backend/.env` | Collection → Platform HMAC 시크릿 |

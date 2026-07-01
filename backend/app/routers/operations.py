@@ -6,12 +6,16 @@ from psycopg.rows import dict_row
 
 from app.db.session import get_connection
 from app.schemas import OperationQueueSectionOut, OperationQueueStatusOut
-from app.services.auth_tokens import require_active_user
+from app.services.auth_tokens import require_admin_user
 
-router = APIRouter(prefix="/operations", tags=["operations"], dependencies=[Depends(require_active_user)])
+router = APIRouter(prefix="/operations", tags=["operations"], dependencies=[Depends(require_admin_user)])
+
+_ALLOWED_QUEUE_TABLES = frozenset({"email_distributions", "project_cost_handoffs"})
 
 
 def _status_counts(cursor: Any, table_name: str) -> dict[str, int]:
+    if table_name not in _ALLOWED_QUEUE_TABLES:
+        raise ValueError(f"Unexpected table name for status_counts: {table_name!r}")
     cursor.execute(f"SELECT status, count(*)::int AS count FROM {table_name} GROUP BY status")
     return {row["status"]: row["count"] for row in cursor.fetchall()}
 

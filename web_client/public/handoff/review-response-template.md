@@ -7,9 +7,9 @@
 - 검토자:
 - 담당 범위: 김희섭 / 김강현 / 박주연
 - 검토일:
-- 기준 URL: https://textiles-zen-syndrome-ultimately.trycloudflare.com/handoff/
-- 검토 패키지: https://textiles-zen-syndrome-ultimately.trycloudflare.com/handoff/public-review-package.json
-- 요구사항정의서: https://textiles-zen-syndrome-ultimately.trycloudflare.com/requirements/AI-PMS-requirements-v0.2.docx
+- 기준 URL: https://ips-owner-bin-craps.trycloudflare.com/handoff/
+- 검토 패키지: https://ips-owner-bin-craps.trycloudflare.com/handoff/public-review-package.json
+- 요구사항정의서: https://ips-owner-bin-craps.trycloudflare.com/requirements/AI-PMS-requirements-v0.2.docx
 - 제출 파일명: review-response-<name>.md
 - 로컬 수집 경로: runtime/review_responses/inbox/
 

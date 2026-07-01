@@ -10,7 +10,7 @@ extract_url() {
   if [ ! -f "$log_file" ]; then
     return 1
   fi
-  grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' "$log_file" | tail -1
+  grep -aEo 'https://[a-z0-9-]+\.trycloudflare\.com' "$log_file" | tail -1
 }
 
 print_service() {

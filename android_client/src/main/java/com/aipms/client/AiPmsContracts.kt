@@ -45,7 +45,6 @@ data class PasswordChangeOut(
 data class ProjectDto(
     val project_id: String,
     val name: String,
-    val description: String? = null,
     val pm_user_id: String?,
     val status: String
 )
@@ -56,21 +55,13 @@ data class ProjectMemberDto(
     val user_id: String,
     val employee_no: String,
     val name: String,
-    val email: String? = null,
-    val user_role: String? = null,
-    val project_role: String,
-    val allocation_percent: Double = 100.0,
-    val planned_mm: Double = 1.0,
-    val staffing_note: String? = null,
-    val annual_salary_krw: Double? = null,
-    val allocated_cost_krw: Double? = null
+    val project_role: String
 )
 
 @Serializable
 data class ProjectDetailDto(
     val project_id: String,
     val name: String,
-    val description: String? = null,
     val pm_user_id: String?,
     val status: String,
     val members: List<ProjectMemberDto> = emptyList()

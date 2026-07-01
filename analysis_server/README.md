@@ -41,6 +41,29 @@ Open:
 - Health: http://127.0.0.1:8100/health
 - Docs: http://127.0.0.1:8100/docs
 
+## Worker Loop
+
+The Platform `/meetings/analyze` route creates a Collection job and waits for a
+worker to complete it. Keep one worker loop running during local development.
+
+macOS/Linux:
+
+```bash
+cd ai_pms_bootstrap
+bash scripts/run_analysis_worker_loop.sh
+```
+
+Windows PowerShell:
+
+```powershell
+cd C:\Users\<user>\dev\ai_pms_bootstrap
+powershell -ExecutionPolicy Bypass -File .\scripts\windows_run_analysis_worker_loop.ps1
+```
+
+LLM fallback order is controlled by `OLLAMA_MODEL` and
+`OLLAMA_FALLBACK_MODELS`. If all Ollama model candidates fail, the worker marks
+the result as `model_name=fallback:rules` and returns a rule-based draft.
+
 ## Example
 
 ```bash

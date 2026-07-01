@@ -11,20 +11,14 @@ require_text() {
   local file="$1"
   local pattern="$2"
   local label="$3"
-  if ! grep -Fq "$pattern" "$file"; then
-    echo "missing $label in $file: $pattern" >&2
-    exit 1
-  fi
+  python3 scripts/check_text_marker.py present "$file" "$pattern" "$label"
 }
 
 require_absent() {
   local file="$1"
   local pattern="$2"
   local label="$3"
-  if grep -Fq "$pattern" "$file"; then
-    echo "unexpected $label in $file: $pattern" >&2
-    exit 1
-  fi
+  python3 scripts/check_text_marker.py absent "$file" "$pattern" "$label"
 }
 
 test -f "$REQUIREMENTS_DOC" || {
