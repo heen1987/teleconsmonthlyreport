@@ -409,6 +409,8 @@ function App() {
   const [passwordChangeRequired, setPasswordChangeRequired] = useState(false);
   const [authView, setAuthView] = useState<AuthView>("login");
   const [loginForm, setLoginForm] = useState({ employee_no: "", password: "" });
+  const [loginIdError, setLoginIdError] = useState("");
+  const [loginPasswordError, setLoginPasswordError] = useState("");
   const [passwordForm, setPasswordForm] = useState({ current_password: "", new_password: "", confirm_password: "" });
   const [passwordResetRequestForm, setPasswordResetRequestForm] = useState<PasswordResetRequestForm>({ employee_no: "", email: "" });
   const [passwordResetConfirmForm, setPasswordResetConfirmForm] = useState<PasswordResetConfirmForm>({
@@ -869,20 +871,35 @@ function App() {
   }, [selectedAdminUser?.user_id, selectedAdminUser?.name, selectedAdminUser?.email, selectedAdminUser?.role, selectedAdminUser?.status]);
 
   async function login() {
-    const result = await api<LoginResponse>("/users/login", {
-      method: "POST",
-      body: JSON.stringify(loginForm),
-    });
-    const nextAuth = {
-      accessToken: result.access_token,
-      expiresAt: result.expires_at,
-      user: result.user,
-    };
-    setAuth(nextAuth);
-    writeStoredAuth(nextAuth);
-    setPasswordChangeRequired(result.password_change_required);
-    setLoginForm({ employee_no: "", password: "" });
+    setLoginIdError("");
+    setLoginPasswordError("");
     setMessage("");
+    try {
+      const result = await api<LoginResponse>("/users/login", {
+        method: "POST",
+        body: JSON.stringify(loginForm),
+      });
+      const nextAuth = {
+        accessToken: result.access_token,
+        expiresAt: result.expires_at,
+        user: result.user,
+      };
+      setAuth(nextAuth);
+      writeStoredAuth(nextAuth);
+      setPasswordChangeRequired(result.password_change_required);
+      setLoginForm({ employee_no: "", password: "" });
+    } catch (error: any) {
+      if (error.message.includes("INVALID_ID")) {
+        setLoginIdError("아이디가 등록되지 않았습니다.");
+      } else if (error.message.includes("INVALID_PASSWORD")) {
+        setLoginPasswordError("비밀번호가 틀렸습니다.");
+      } else if (error.message.includes("Invalid employee number or password")) {
+        setLoginPasswordError("사번 또는 비밀번호를 확인하세요.");
+      } else {
+        setMessage(error.message);
+      }
+      throw error;
+    }
   }
 
   async function requestPasswordReset() {
@@ -987,6 +1004,8 @@ function App() {
       <AuthPanel
         authView={authView}
         loginForm={loginForm}
+        loginIdError={loginIdError}
+        loginPasswordError={loginPasswordError}
         passwordResetRequestForm={passwordResetRequestForm}
         passwordResetConfirmForm={passwordResetConfirmForm}
         message={message}
@@ -1023,8 +1042,12 @@ function App() {
         </div>
         <nav className="meetflow-nav">
           <button className={activeView === "visual" ? "active" : ""} type="button" onClick={() => setActiveView("visual")}>
-            <BarChart3 size={18} />
-            <span>시각화</span>
+            <LayoutDashboard size={18} />
+            <span>통합 대시보드</span>
+          </button>
+          <button className={activeView === "minutes" ? "active" : ""} type="button" onClick={() => setActiveView("minutes")}>
+            <FileText size={18} />
+            <span>회의록</span>
           </button>
           <button className={activeView === "review" ? "active" : ""} type="button" onClick={() => setActiveView("review")}>
             <ClipboardList size={18} />
@@ -1090,6 +1113,42 @@ function App() {
 
       {activeView === "visual" ? (
         <VisualConsole
+          dashboard={dashboard}
+          projects={projects}
+          review={review}
+          resourceProfiles={resourceProfiles}
+          resourceAvailability={resourceAvailability}
+          resourceUsage={resourceUsage}
+          costCandidates={costCandidates}
+          distributionLogs={distributionLogs}
+          recentMeetings={recentMeetings}
+          operationQueue={operationQueue}
+          selectedProject={selectedProject}
+          selectedProjectDetail={selectedProjectDetail}
+          knowledgeItems={knowledgeItems}
+          knowledgeItemKind={knowledgeItemKind}
+          knowledgeSearchTerm={knowledgeSearchTerm}
+          canRunErpHandoff={canRunErpHandoff}
+          canViewSensitiveStaffing={canViewSensitiveStaffing}
+          onKnowledgeProjectChange={setSelectedProject}
+          onKnowledgeItemKindChange={setKnowledgeItemKind}
+          onKnowledgeSearchTermChange={setKnowledgeSearchTerm}
+          onRefreshKnowledge={() => loadKnowledgeItems().catch((error) => setMessage(error.message))}
+          onReviewCostCandidate={(costId, status) => reviewCostCandidate(costId, status).catch((error) => setMessage(error.message))}
+          onRunOverdueRiskPromotion={() => runOverdueRiskPromotion().catch((error) => setMessage(error.message))}
+          onRunCostRiskPromotion={() => runCostRiskPromotion().catch((error) => setMessage(error.message))}
+          onRunResourceConflictRiskPromotion={() => runResourceConflictRiskPromotion().catch((error) => setMessage(error.message))}
+          onRunUnassignedResourceDemandRiskPromotion={() => runUnassignedResourceDemandRiskPromotion().catch((error) => setMessage(error.message))}
+          onRunResourceUsageOverrunRiskPromotion={() => runResourceUsageOverrunRiskPromotion().catch((error) => setMessage(error.message))}
+          onRunEmailRetryDue={() => runEmailRetryDue().catch((error) => setMessage(error.message))}
+          onRunErpHandoffSendDue={() => runErpHandoffSendDue().catch((error) => setMessage(error.message))}
+          onOpenMeeting={(targetMeetingId) => {
+            setMeetingId(targetMeetingId);
+            setActiveView("review");
+          }}
+        />
+      ) : activeView === "minutes" ? (
+        <MinutesConsole
           dashboard={dashboard}
           projects={projects}
           review={review}
@@ -2012,22 +2071,9 @@ function VisualConsole(props: Parameters<typeof LegacyVisualConsole>[0]) {
     <>
         <section className="workspace-head" data-screen-trace={SCREEN_DESIGN_TRACE_MARKERS.join(" | ")}>
           <div>
-            <span className="breadcrumb">프로젝트</span>
-            <h2>{projectTitle}</h2>
-            {projectDescription && <p className="workspace-description">{projectDescription}</p>}
-            <div className="workspace-tabs">
-              {designTabs.map((tab, index) => (
-                <button className={index === 0 ? "active" : ""} key={tab} type="button">{tab}</button>
-              ))}
-            </div>
-          </div>
-          <div className="workspace-actions">
-            <button className="outline-action" type="button">
-              <Settings size={16} /> 프로젝트 설정
-            </button>
-            <button type="button">
-              <Plus size={16} /> 회의록 작성
-            </button>
+            <span className="breadcrumb">PMS 모듈</span>
+            <h2>통합 대시보드</h2>
+            <p className="workspace-description">전체 프로젝트 상태, 업무 현황, 자원 풀 및 자동화 운영 현황을 통합 모니터링합니다.</p>
           </div>
         </section>
 
@@ -2045,151 +2091,6 @@ function VisualConsole(props: Parameters<typeof LegacyVisualConsole>[0]) {
         </section>
 
         <section className="workspace-layout">
-          <article className="mf-panel mf-span-12 note-benchmark-workbench">
-            <div className="note-rail">
-              <div className="note-brand-chip">
-                <Mic size={16} />
-                <span>AI 회의록</span>
-              </div>
-              <button className="note-primary-action" type="button">
-                <Plus size={16} /> 새 녹음
-              </button>
-              <nav className="note-rail-nav">
-                <button className="active" type="button"><FileText size={15} /> 전체 노트</button>
-                <button type="button"><Folder size={15} /> 프로젝트 노트</button>
-                <button type="button"><Users size={15} /> 공유 받은 노트</button>
-                <button type="button"><Search size={15} /> 키워드 검색</button>
-              </nav>
-              <div className="note-mode-grid">
-                {noteModeRows.map((row) => (
-                  <button key={row.label} type="button">
-                    {row.icon}
-                    <span>{row.label}</span>
-                    <b>{row.value}</b>
-                  </button>
-                ))}
-              </div>
-              <div className="note-keyword-box">
-                <span>자주 찾는 키워드</span>
-                <b>Project_ID</b>
-                <b>자동 배포</b>
-                <b>리스크</b>
-                <b>회의록 승인</b>
-              </div>
-            </div>
-
-            <div className="note-list-pane">
-              <div className="note-pane-head">
-                <div>
-                  <span>프로젝트 회의 노트</span>
-                  <strong>{displayedNoteRows.length}개</strong>
-                </div>
-                <button className="icon-button" type="button" aria-label="회의록 새로고침">
-                  <RefreshCw size={15} />
-                </button>
-              </div>
-              <div className="note-search-box">
-                <Search size={15} />
-                <span>회의명, 안건, 키워드 검색</span>
-              </div>
-              <div className="note-list">
-                {displayedNoteRows.map((note, index) => (
-                  <button
-                    className={`note-list-row ${index === 0 ? "active" : ""}`}
-                    key={note.id}
-                    type="button"
-                    onClick={() => note.id.startsWith("sample") ? undefined : onOpenMeeting(note.id)}
-                  >
-                    <span>
-                      <b>{note.title}</b>
-                      <small>{note.project}</small>
-                    </span>
-                    <em>{note.status}</em>
-                    <small>{note.time} · {note.duration}</small>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="note-transcript-pane">
-              <div className="note-detail-head">
-                <div>
-                  <span>{activeProject?.project_id ?? "SSK-SW-PJT-01"}</span>
-                  <h3>{displayedNoteRows[0]?.title ?? "AI-PMS 주간 진행 회의"}</h3>
-                  <p>{projectDescription || "프로젝트 회의 내용을 자동 전사하고 요약하여 프로젝트 구성원에게 배포합니다."}</p>
-                </div>
-                <div className="note-detail-actions">
-                  <button className="outline-action" type="button"><Download size={15} /> 내보내기</button>
-                  <button type="button"><Send size={15} /> 승인 배포</button>
-                </div>
-              </div>
-              <div className="note-tabbar">
-                <button className="active" type="button">스크립트</button>
-                <button type="button">AI 요약</button>
-                <button type="button">업무</button>
-                <button type="button">키워드</button>
-              </div>
-              <div className="annotation-strip">
-                {annotationRows.map((row) => (
-                  <button key={row.label} type="button">
-                    <span>{row.label}</span>
-                    <b>{row.value}</b>
-                  </button>
-                ))}
-              </div>
-              <div className="transcript-list">
-                {transcriptRows.map((row) => (
-                  <div className={`transcript-row ${row.active ? "active" : ""}`} key={`${row.time}-${row.segmentLabel}`}>
-                    <span className="segment-index">{row.segmentLabel.replace("구간 ", "")}</span>
-                    <div>
-                      <strong>{row.segmentLabel}<small>{row.context}</small></strong>
-                      <p>{row.text}</p>
-                    </div>
-                    <time>{row.time}</time>
-                  </div>
-                ))}
-              </div>
-              <div className="note-player">
-                <button type="button" aria-label="일시 정지"><PauseCircle size={22} /></button>
-                <span>12:48</span>
-                <div className="note-waveform" aria-hidden="true">
-                  {Array.from({ length: 42 }, (_, index) => (
-                    <i key={index} style={{ height: `${10 + (index % 9) * 3}px` }} />
-                  ))}
-                </div>
-                <span>42:18</span>
-              </div>
-            </div>
-
-            <aside className="note-ai-pane">
-              <div className="ai-pane-title">
-                <Sparkles size={17} />
-                <strong>AI 메모</strong>
-                <span>자동 생성</span>
-              </div>
-              <div className="ai-summary-list">
-                {aiSummaryRows.map((row) => (
-                  <section key={row.label}>
-                    <b>{row.label}</b>
-                    <p>{row.text}</p>
-                  </section>
-                ))}
-              </div>
-              <div className="ai-candidate-list">
-                {aiCandidateRows.map((row) => (
-                  <div className={`ai-candidate ${row.tone}`} key={row.label}>
-                    <span>{row.label}</span>
-                    <b>{row.value}</b>
-                  </div>
-                ))}
-              </div>
-              <div className="auto-distribution-box">
-                <span>배포 대상</span>
-                <strong>프로젝트 구성원 {projectMembers.length || 3}명</strong>
-                <small>수동 참석자 선택 없음 · 이메일 기준 자동 발송</small>
-              </div>
-            </aside>
-          </article>
 
           <article className="mf-panel mf-span-4">
             <PanelHeader title="최근 회의록" action="더보기" />
@@ -2634,6 +2535,542 @@ function VisualConsole(props: Parameters<typeof LegacyVisualConsole>[0]) {
   );
 }
 
+
+function MinutesConsole(props: Parameters<typeof LegacyVisualConsole>[0]) {
+  const {
+    projects,
+    recentMeetings,
+    selectedProject,
+    selectedProjectDetail,
+    onOpenMeeting,
+  } = props;
+
+  const activeProject = projects.find((project) => project.project_id === selectedProject) ?? projects[0] ?? null;
+  const activeProjectDetail = selectedProjectDetail?.project_id === selectedProject ? selectedProjectDetail : null;
+  const projectTitle = activeProject?.name ?? "AI 회의 플랫폼 구축";
+  const projectDescription = activeProjectDetail?.description ?? activeProject?.description ?? "";
+  const projectMembers = activeProjectDetail?.members ?? [];
+
+  // ClovaNote Speaker & Edit states
+  const [speakerNames, setSpeakerNames] = React.useState<Record<string, string>>({
+    "참석자 1": "김철수 (PM)",
+    "참석자 2": "이영희 (PL)",
+    "참석자 3": "박민수 (DEV)",
+    "참석자 4": "최지우 (QA)"
+  });
+  const [editingSpeaker, setEditingSpeaker] = React.useState<string | null>(null);
+  
+  // Interactive transcript editing
+  const [transcripts, setTranscripts] = React.useState([
+    {
+      id: 1,
+      segmentLabel: "구간 01",
+      context: "Project_ID",
+      time: "00:03",
+      text: "오늘 회의는 Project_ID 기준으로 녹음, 전사, 분석, 승인, 배포까지 끊기지 않게 확인하겠습니다.",
+      active: true,
+      speaker: "참석자 1",
+      highlighted: false
+    },
+    {
+      id: 2,
+      segmentLabel: "구간 02",
+      context: "배포정책",
+      time: "03:42",
+      text: "참석자 선택은 제거하고 프로젝트 구성원 전체가 자동 배포 대상이 되도록 유지해야 합니다.",
+      active: false,
+      speaker: "참석자 2",
+      highlighted: false
+    },
+    {
+      id: 3,
+      segmentLabel: "구간 03",
+      context: "PMS연계",
+      time: "12:08",
+      text: "프로젝트 상세 API에 인력, 비용, 회의록 지식 항목이 같이 연결되어야 후속 업무 변환이 가능합니다.",
+      active: false,
+      speaker: "참석자 3",
+      highlighted: true
+    },
+    {
+      id: 4,
+      segmentLabel: "구간 04",
+      context: "앱화면",
+      time: "24:31",
+      text: "휴대폰은 녹음 중심, 태블릿은 스크립트와 요약을 동시에 보는 구조로 분기하겠습니다.",
+      active: false,
+      speaker: "참석자 4",
+      highlighted: false
+    }
+  ]);
+  const [editingTranscriptId, setEditingTranscriptId] = React.useState<number | null>(null);
+  const [editingText, setEditingText] = React.useState("");
+
+  // Playback speeds
+  const [playbackSpeed, setPlaybackSpeed] = React.useState("1.0");
+
+  const noteListRows = recentMeetings.slice(0, 4).map((meeting, index) => ({
+    id: meeting.meeting_id,
+    title: meeting.title,
+    project: meeting.project_name,
+    time: formatShortDateTime(meeting.created_at),
+    status: MEETING_STATUS_LABELS[meeting.status] ?? meeting.status,
+    duration: ["42:18", "31:04", "58:22", "26:49"][index % 4],
+  }));
+  const displayedNoteRows = noteListRows.length > 0 ? noteListRows : [
+    { id: "sample-note-1", title: "AI-PMS 주간 진행 회의", project: projectTitle, time: "오늘 10:30", status: "AI 요약 완료", duration: "42:18" },
+    { id: "sample-note-2", title: "리스크·인력 배정 점검", project: projectTitle, time: "어제 16:10", status: "검토 대기", duration: "31:04" },
+    { id: "sample-note-3", title: "Android 녹음 업로드 테스트", project: projectTitle, time: "06.28 14:20", status: "전사 완료", duration: "58:22" },
+  ];
+
+  // Speaker Avatars styling
+  const getSpeakerAvatar = (speaker: string) => {
+    const idx = parseInt(speaker.replace("참석자 ", "")) || 1;
+    const colors = [
+      { bg: "#e8f8f0", fg: "#03c75a", initial: "김" }, // mint
+      { bg: "#f3e8ff", fg: "#7c3aed", initial: "이" }, // violet
+      { bg: "#eff6ff", fg: "#2563eb", initial: "박" }, // blue
+      { bg: "#fffbeb", fg: "#f59e0b", initial: "최" }  // yellow
+    ];
+    return colors[(idx - 1) % colors.length];
+  };
+
+  const noteModeRows = [
+    { label: "요약", value: "3", icon: <Sparkles size={14} /> },
+    { label: "스크립트", value: "42:18", icon: <FileText size={14} /> },
+    { label: "검색", value: "키워드", icon: <Search size={14} /> },
+    { label: "공유", value: "승인 후", icon: <Send size={14} /> },
+  ];
+  const annotationRows = [
+    { label: "하이라이트", value: transcripts.filter(t => t.highlighted).length.toString() },
+    { label: "북마크", value: "2" },
+    { label: "메모", value: "3" },
+    { label: "AI Chat", value: "대기" },
+  ];
+  const aiCandidateRows = [
+    { label: "Action", value: 2, tone: "blue" },
+    { label: "Risk", value: 1, tone: "amber" },
+    { label: "Decision", value: 2, tone: "green" },
+  ];
+
+  const handleSpeakerRename = (key: string, name: string) => {
+    setSpeakerNames(prev => ({ ...prev, [key]: name }));
+    setEditingSpeaker(null);
+  };
+
+  const handleTextEditSave = (id: number) => {
+    setTranscripts(prev => prev.map(t => t.id === id ? { ...t, text: editingText } : t));
+    setEditingTranscriptId(null);
+  };
+
+  const handleToggleHighlight = (id: number) => {
+    setTranscripts(prev => prev.map(t => t.id === id ? { ...t, highlighted: !t.highlighted } : t));
+  };
+
+  return (
+    <>
+      <section className="workspace-head">
+        <div>
+          <span className="breadcrumb">PMS 모듈</span>
+          <h2>회의록 관리</h2>
+          <p className="workspace-description">
+            프로젝트 회의 내용을 전사하고 AI로 분석하여 후속 태스크 및 리스크를 도출합니다.
+          </p>
+        </div>
+        <div className="workspace-actions">
+          <button type="button">
+            <Plus size={16} /> 새 회의록 작성
+          </button>
+        </div>
+      </section>
+
+      <section className="workspace-layout">
+        <article className="mf-panel mf-span-12 note-benchmark-workbench">
+          
+          {/* Note sidebar (ClovaNote-inspired Left Sidebar) */}
+          <div className="note-rail" style={{ background: "#111827" }}>
+            <div className="note-brand-chip">
+              <Mic size={16} style={{ color: "#03c75a" }} />
+              <span style={{ fontWeight: 800 }}>AI 회의록</span>
+            </div>
+            <button className="note-primary-action" type="button" style={{ background: "#03c75a", border: 0 }}>
+              <Plus size={16} /> 새 녹음
+            </button>
+            <nav className="note-rail-nav">
+              <button className="active" type="button"><FileText size={15} /> 전체 노트</button>
+              <button type="button"><Folder size={15} /> 프로젝트 노트</button>
+              <button type="button"><Users size={15} /> 공유 받은 노트</button>
+              <button type="button"><Search size={15} /> 키워드 검색</button>
+            </nav>
+            <div className="note-mode-grid">
+              {noteModeRows.map((row) => (
+                <button key={row.label} type="button">
+                  {row.icon}
+                  <span>{row.label}</span>
+                  <b>{row.value}</b>
+                </button>
+              ))}
+            </div>
+            <div className="note-keyword-box">
+              <span>자주 찾는 키워드</span>
+              <b>Project_ID</b>
+              <b>자동 배포</b>
+              <b>리스크</b>
+              <b>회의록 승인</b>
+            </div>
+          </div>
+
+          {/* Note List (ClovaNote-inspired list) */}
+          <div className="note-list-pane" style={{ background: "#f8fafc" }}>
+            <div className="note-pane-head">
+              <div>
+                <span>프로젝트 회의 노트</span>
+                <strong>{displayedNoteRows.length}개</strong>
+              </div>
+              <button className="icon-button" type="button" aria-label="회의록 새로고침">
+                <RefreshCw size={15} />
+              </button>
+            </div>
+            <div className="note-search-box">
+              <Search size={15} />
+              <span>회의명, 안건, 키워드 검색</span>
+            </div>
+            <div className="note-list">
+              {displayedNoteRows.map((note, index) => (
+                <button
+                  className={`note-list-row ${index === 0 ? "active" : ""}`}
+                  key={note.id}
+                  type="button"
+                  onClick={() => note.id.startsWith("sample") ? undefined : onOpenMeeting(note.id)}
+                  style={{ borderRadius: "8px", margin: "4px 8px" }}
+                >
+                  <span>
+                    <b style={{ color: "#1e293b" }}>{note.title}</b>
+                    <small style={{ color: "#64748b" }}>{note.project}</small>
+                  </span>
+                  <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "4px" }}>
+                    <em style={{
+                      background: note.status.includes("완료") ? "#e6fcf5" : "#fff0f6",
+                      color: note.status.includes("완료") ? "#0ca678" : "#f03e3e",
+                      fontSize: "11px",
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                      fontStyle: "normal",
+                      fontWeight: 600
+                    }}>{note.status}</em>
+                    <small style={{ color: "#64748b" }}>{note.time} · {note.duration}</small>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Transcript pane (Naver ClovaNote layout) */}
+          <div className="note-transcript-pane" style={{ display: "flex", flexDirection: "column" }}>
+            <div className="note-detail-head">
+              <div>
+                <span style={{ color: "#03c75a", fontWeight: 700 }}>{activeProject?.project_id ?? "SSK-SW-PJT-01"}</span>
+                <h3>{displayedNoteRows[0]?.title ?? "AI-PMS 주간 진행 회의"}</h3>
+                <p>{projectDescription || "프로젝트 회의 내용을 자동 전사하고 요약하여 프로젝트 구성원에게 배포합니다."}</p>
+              </div>
+              <div className="note-detail-actions">
+                <button className="outline-action" type="button"><Download size={15} /> 내보내기</button>
+                <button type="button" style={{ background: "#03c75a", border: 0 }}><Send size={15} /> 승인 배포</button>
+              </div>
+            </div>
+
+            <div className="note-tabbar">
+              <button className="active" type="button">스크립트</button>
+              <button type="button">AI 요약</button>
+              <button type="button">업무</button>
+              <button type="button">키워드</button>
+            </div>
+
+            <div className="annotation-strip" style={{ borderBottom: "1px solid #e2e8f0" }}>
+              {annotationRows.map((row) => (
+                <button key={row.label} type="button">
+                  <span>{row.label}</span>
+                  <b>{row.value}</b>
+                </button>
+              ))}
+            </div>
+
+            {/* Transcript loop with speaker avatars & text editor */}
+            <div className="transcript-list" style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
+              {transcripts.map((row) => {
+                const avatar = getSpeakerAvatar(row.speaker);
+                const isEditing = editingTranscriptId === row.id;
+                const isEditingSpeaker = editingSpeaker === row.speaker;
+                return (
+                  <div
+                    className={`transcript-row ${row.active ? "active" : ""}`}
+                    key={row.id}
+                    style={{
+                      display: "flex",
+                      gap: "12px",
+                      padding: "12px",
+                      borderRadius: "8px",
+                      background: row.highlighted ? "#fef9c3" : (row.active ? "#ebf9ef" : "transparent"),
+                      borderBottom: "1px solid #f1f5f9",
+                      transition: "background 0.2s"
+                    }}
+                  >
+                    {/* Speaker Avatar */}
+                    <div
+                      style={{
+                        width: "36px",
+                        height: "36px",
+                        borderRadius: "50%",
+                        background: avatar.bg,
+                        color: avatar.fg,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontWeight: 800,
+                        fontSize: "13px",
+                        flexShrink: 0
+                      }}
+                    >
+                      {avatar.initial}
+                    </div>
+
+                    {/* Speaker & Text content */}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                        {isEditingSpeaker ? (
+                          <input
+                            defaultValue={speakerNames[row.speaker]}
+                            onBlur={(e) => handleSpeakerRename(row.speaker, e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleSpeakerRename(row.speaker, e.currentTarget.value);
+                            }}
+                            autoFocus
+                            style={{
+                              fontSize: "12px",
+                              padding: "2px 6px",
+                              border: "1px solid #03c75a",
+                              borderRadius: "4px"
+                            }}
+                          />
+                        ) : (
+                          <strong
+                            onClick={() => setEditingSpeaker(row.speaker)}
+                            style={{ fontSize: "13px", color: "#334155", cursor: "pointer" }}
+                            title="화자명 클릭 시 편집 가능"
+                          >
+                            {speakerNames[row.speaker]}
+                          </strong>
+                        )}
+                        <span style={{ fontSize: "11px", color: "#94a3b8" }}>{row.time}</span>
+                      </div>
+
+                      {/* Transcript Text (Editable) */}
+                      {isEditing ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                          <textarea
+                            value={editingText}
+                            onChange={(e) => setEditingText(e.target.value)}
+                            style={{
+                              width: "100%",
+                              minHeight: "60px",
+                              padding: "8px",
+                              borderRadius: "6px",
+                              border: "1px solid #cbd5e1"
+                            }}
+                          />
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <button
+                              onClick={() => handleTextEditSave(row.id)}
+                              style={{
+                                padding: "4px 10px",
+                                background: "#03c75a",
+                                color: "white",
+                                border: 0,
+                                borderRadius: "4px",
+                                fontSize: "12px",
+                                cursor: "pointer"
+                              }}
+                            >
+                              저장
+                            </button>
+                            <button
+                              onClick={() => setEditingTranscriptId(null)}
+                              style={{
+                                padding: "4px 10px",
+                                background: "#64748b",
+                                color: "white",
+                                border: 0,
+                                borderRadius: "4px",
+                                fontSize: "12px",
+                                cursor: "pointer"
+                              }}
+                            >
+                              취소
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: "14px",
+                            color: "#1e293b",
+                            lineHeight: "1.6"
+                          }}
+                        >
+                          {row.text}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Quick controls (Edit / Highlight) */}
+                    <div style={{ display: "flex", gap: "4px", alignSelf: "flex-start" }}>
+                      <button
+                        onClick={() => {
+                          setEditingTranscriptId(row.id);
+                          setEditingText(row.text);
+                        }}
+                        style={{
+                          background: "transparent",
+                          border: 0,
+                          color: "#64748b",
+                          cursor: "pointer",
+                          padding: "4px"
+                        }}
+                        title="텍스트 수정"
+                      >
+                        <Edit size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleToggleHighlight(row.id)}
+                        style={{
+                          background: "transparent",
+                          border: 0,
+                          color: row.highlighted ? "#f59e0b" : "#64748b",
+                          cursor: "pointer",
+                          padding: "4px"
+                        }}
+                        title="중요 형광펜"
+                      >
+                        <Sparkles size={14} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Audio player with speed controls & skip 10s */}
+            <div className="note-player" style={{ borderTop: "1px solid #e2e8f0", padding: "12px 18px", gap: "12px" }}>
+              <button type="button" aria-label="10초 뒤로" style={{ background: "transparent", border: 0, color: "#64748b" }}>
+                <Clock size={16} />
+              </button>
+              <button type="button" aria-label="일시 정지" style={{ color: "#03c75a" }}><PauseCircle size={24} /></button>
+              <button type="button" aria-label="10초 앞으로" style={{ background: "transparent", border: 0, color: "#64748b" }}>
+                <Clock size={16} style={{ transform: "scaleX(-1)" }} />
+              </button>
+
+              <span style={{ fontSize: "12px", color: "#64748b" }}>12:48</span>
+              <div className="note-waveform" aria-hidden="true" style={{ flex: 1 }}>
+                {Array.from({ length: 42 }, (_, index) => (
+                  <i key={index} style={{ height: `${10 + (index % 9) * 3}px`, background: index < 15 ? "#03c75a" : "#cbd5e1" }} />
+                ))}
+              </div>
+              <span style={{ fontSize: "12px", color: "#64748b" }}>42:18</span>
+
+              {/* Speed Controller */}
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <small style={{ color: "#64748b" }}>배속</small>
+                <select
+                  value={playbackSpeed}
+                  onChange={(e) => setPlaybackSpeed(e.target.value)}
+                  style={{
+                    padding: "3px 6px",
+                    borderRadius: "4px",
+                    border: "1px solid #cbd5e1",
+                    fontSize: "12px",
+                    outline: 0
+                  }}
+                >
+                  <option value="0.8">0.8x</option>
+                  <option value="1.0">1.0x (기본)</option>
+                  <option value="1.2">1.2x</option>
+                  <option value="1.5">1.5x</option>
+                  <option value="2.0">2.0x</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* AI Notes Sidebar (collapsible outlines and outlines) */}
+          <aside className="note-ai-pane" style={{ borderLeft: "1px solid #e2e8f0", background: "#f8fafc" }}>
+            <div className="ai-pane-title">
+              <Sparkles size={17} style={{ color: "#03c75a" }} />
+              <strong style={{ color: "#1e293b" }}>AI 요약 및 분석</strong>
+            </div>
+
+            {/* Keyword tags */}
+            <div style={{ padding: "0 16px 12px" }}>
+              <span style={{ fontSize: "11px", color: "#94a3b8", display: "block", marginBottom: "6px" }}>AI 추천 키워드</span>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                {["Project_ID", "자동 배포", "Android", "STT 분석", "이메일 배포"].map(tag => (
+                  <span
+                    key={tag}
+                    style={{
+                      background: "#ebf9ef",
+                      color: "#03c75a",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      padding: "4px 8px",
+                      borderRadius: "20px"
+                    }}
+                  >
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="ai-summary-list" style={{ padding: "0 16px" }}>
+              {aiSummaryRows.map((row) => (
+                <section
+                  key={row.label}
+                  style={{
+                    background: "white",
+                    padding: "12px",
+                    borderRadius: "8px",
+                    border: "1px solid #e2e8f0",
+                    marginBottom: "10px"
+                  }}
+                >
+                  <b style={{ color: "#03c75a", fontSize: "12px", display: "block", marginBottom: "4px" }}>{row.label}</b>
+                  <p style={{ margin: 0, fontSize: "12px", color: "#334155", lineHeight: "1.5" }}>{row.text}</p>
+                </section>
+              ))}
+            </div>
+
+            <div className="ai-candidate-list" style={{ padding: "0 16px" }}>
+              {aiCandidateRows.map((row) => (
+                <div className={`ai-candidate ${row.tone}`} key={row.label} style={{ borderRadius: "8px" }}>
+                  <span>{row.label}</span>
+                  <b>{row.value}</b>
+                </div>
+              ))}
+            </div>
+
+            <div className="auto-distribution-box" style={{ margin: "16px", background: "#f1f5f9" }}>
+              <span style={{ color: "#475569" }}>배포 대상</span>
+              <strong style={{ color: "#0f172a" }}>프로젝트 구성원 {projectMembers.length || 3}명</strong>
+              <small style={{ color: "#64748b" }}>수동 참석자 선택 없음 · 이메일 기준 자동 발송</small>
+            </div>
+          </aside>
+        </article>
+      </section>
+    </>
+  );
+}
+
+
 function PanelHeader({ title, action }: { title: string; action: string }) {
   return (
     <div className="panel-head">
@@ -2845,7 +3282,7 @@ function PublicRunPage() {
       name: "local_web",
       commands: [
         "cd web_client",
-        "VITE_API_BASE=http://127.0.0.1:8000 npm run dev -- --host 0.0.0.0 --port 3000",
+        "VITE_API_BASE=http://127.0.0.1:8000 npm run dev -- --host 127.0.0.1 --port 3000",
       ],
     },
     {
@@ -2983,6 +3420,8 @@ function PublicRunPage() {
 function AuthPanel({
   authView,
   loginForm,
+  loginIdError,
+  loginPasswordError,
   passwordResetRequestForm,
   passwordResetConfirmForm,
   message,
@@ -2996,6 +3435,8 @@ function AuthPanel({
 }: {
   authView: AuthView;
   loginForm: { employee_no: string; password: string };
+  loginIdError?: string;
+  loginPasswordError?: string;
   passwordResetRequestForm: PasswordResetRequestForm;
   passwordResetConfirmForm: PasswordResetConfirmForm;
   message: string;
@@ -3099,6 +3540,7 @@ function AuthPanel({
             value={loginForm.employee_no}
             onChange={(event) => onLoginFormChange({ ...loginForm, employee_no: event.target.value })}
           />
+          {loginIdError && <div style={{ color: "#ff4d4f", fontSize: "12px", marginTop: "4px" }}>{loginIdError}</div>}
         </label>
         <label>
           <span>비밀번호</span>
@@ -3108,6 +3550,7 @@ function AuthPanel({
             value={loginForm.password}
             onChange={(event) => onLoginFormChange({ ...loginForm, password: event.target.value })}
           />
+          {loginPasswordError && <div style={{ color: "#ff4d4f", fontSize: "12px", marginTop: "4px" }}>{loginPasswordError}</div>}
         </label>
         <div className="auth-actions">
           <button type="submit">로그인</button>
@@ -3175,6 +3618,105 @@ function PasswordChangePanel({
         {message && <pre className="message auth-message">{message}</pre>}
       </form>
     </main>
+  );
+}
+
+function CompanyProfilePanel({
+  form,
+  context,
+  onFormChange,
+  onSave,
+  onRefresh,
+}: {
+  form: CompanyProfileForm;
+  context: CompanyContext | null;
+  onFormChange: (value: CompanyProfileForm) => void;
+  onSave: () => void;
+  onRefresh: () => void;
+}) {
+  const summary = context?.summary;
+  const update = (patch: Partial<CompanyProfileForm>) => onFormChange({ ...form, ...patch });
+  return (
+    <section className="admin-section company-admin-panel">
+      <div className="section-title">
+        <div>
+          <h2>회사 정보 등록</h2>
+          <p>웹/앱 PMS가 사용할 회사 기준정보와 조직 요약을 관리합니다.</p>
+        </div>
+        <span className="ops-actions">
+          <button className="secondary" type="button" onClick={onRefresh}>
+            <RefreshCw size={16} /> 조회
+          </button>
+          <button type="button" onClick={onSave}>
+            <Save size={16} /> 저장
+          </button>
+        </span>
+      </div>
+      <div className="admin-form-grid company-form-grid">
+        <label>
+          <span>회사 ID</span>
+          <input value={form.company_id} onChange={(event) => update({ company_id: event.target.value })} />
+        </label>
+        <label>
+          <span>회사명</span>
+          <input value={form.company_name} onChange={(event) => update({ company_name: event.target.value })} />
+        </label>
+        <label>
+          <span>영문명</span>
+          <input value={form.english_name} onChange={(event) => update({ english_name: event.target.value })} />
+        </label>
+        <label>
+          <span>업종</span>
+          <input value={form.industry} onChange={(event) => update({ industry: event.target.value })} />
+        </label>
+        <label>
+          <span>설립일</span>
+          <input type="date" value={form.founded_on} onChange={(event) => update({ founded_on: event.target.value })} />
+        </label>
+        <label>
+          <span>대표</span>
+          <input value={form.ceo} onChange={(event) => update({ ceo: event.target.value })} />
+        </label>
+        <label>
+          <span>본사</span>
+          <input value={form.headquarters} onChange={(event) => update({ headquarters: event.target.value })} />
+        </label>
+        <label>
+          <span>회계연도</span>
+          <input value={form.fiscal_year} onChange={(event) => update({ fiscal_year: event.target.value })} />
+        </label>
+        <label>
+          <span>연매출</span>
+          <input inputMode="numeric" value={form.annual_revenue_krw} onChange={(event) => update({ annual_revenue_krw: event.target.value })} />
+        </label>
+        <label>
+          <span>직원 수</span>
+          <input inputMode="numeric" value={form.headcount} onChange={(event) => update({ headcount: event.target.value })} />
+        </label>
+        <label>
+          <span>프로젝트 수</span>
+          <input inputMode="numeric" value={form.project_count} onChange={(event) => update({ project_count: event.target.value })} />
+        </label>
+        <label>
+          <span>조직 요약</span>
+          <input value={form.organization_summary} onChange={(event) => update({ organization_summary: event.target.value })} />
+        </label>
+        <label>
+          <span>인원 배치</span>
+          <input value={form.headcount_summary} onChange={(event) => update({ headcount_summary: event.target.value })} />
+        </label>
+        <label className="form-span-2">
+          <span>비고</span>
+          <textarea value={form.note} onChange={(event) => update({ note: event.target.value })} />
+        </label>
+      </div>
+      <div className="company-admin-summary">
+        <span><small>DB 사용자</small><strong>{summary?.users ?? 0}명</strong></span>
+        <span><small>활성 사용자</small><strong>{summary?.active_users ?? 0}명</strong></span>
+        <span><small>프로젝트</small><strong>{summary?.projects ?? 0}개</strong></span>
+        <span><small>프로젝트 멤버십</small><strong>{summary?.project_members ?? 0}건</strong></span>
+      </div>
+    </section>
   );
 }
 
