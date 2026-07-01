@@ -7,6 +7,8 @@ on:
       - main
     paths:
       - "web_client/**"
+      - "index.html"
+      - "platform/**"
       - ".github/workflows/deploy-web-pages.yml"
   workflow_dispatch:
 
@@ -57,6 +59,7 @@ jobs:
               ;;
           esac
           mkdir -p public/platform
+          app_url="${pages_url%/}/app/"
           cat > public/platform/index.json <<EOF
           {
             "kind": "meetflow_platform_index",
@@ -66,9 +69,11 @@ jobs:
             "platform_api_url": "$pages_url",
             "platform_index_url": "$pages_url/platform/index.json",
             "web_console_url": "$pages_url/",
+            "app_url": "$app_url",
             "public_urls": {
               "platform_index": "$pages_url/platform/index.json",
               "web_console": "$pages_url/",
+              "app": "$app_url",
               "run_hub": "$pages_url/run/",
               "execution_json": "$pages_url/run/execution.json",
               "apk_download_page": "$pages_url/downloads/",
@@ -86,19 +91,26 @@ jobs:
             echo "AIPMS_RESOLVED_PLATFORM_URL=$pages_url"
             echo "AIPMS_RESOLVED_PLATFORM_INDEX_URL=$pages_url/platform/index.json"
             echo "AIPMS_RESOLVED_BASE_PATH=$base_path"
+            echo "AIPMS_RESOLVED_APP_BASE_PATH=${base_path%/}/app/"
           } >> "$GITHUB_ENV"
 
       - name: Build
         run: |
+          rm -rf pages-dist dist
+          mkdir -p pages-dist
           VITE_API_BASE="$AIPMS_RESOLVED_PLATFORM_URL" \
           VITE_PLATFORM_INDEX_URL="$AIPMS_RESOLVED_PLATFORM_INDEX_URL" \
-          VITE_BASE_PATH="$AIPMS_RESOLVED_BASE_PATH" \
+          VITE_BASE_PATH="$AIPMS_RESOLVED_APP_BASE_PATH" \
+          VITE_DISABLE_PUBLIC_COPY=1 \
+          VITE_OUT_DIR="pages-dist/app" \
           npm run build
+          cp ../index.html pages-dist/index.html
+          cp -R public/. pages-dist/
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: web_client/dist
+          path: web_client/pages-dist
 
   deploy:
     environment:

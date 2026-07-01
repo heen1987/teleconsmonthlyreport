@@ -8,9 +8,11 @@ type AppRouterProps = {
   run: React.ReactElement;
 };
 
+const routerBase = import.meta.env.BASE_URL === "/" ? undefined : import.meta.env.BASE_URL.replace(/\/$/, "");
+
 export function AppRouter({ app, downloads, handoff, run }: AppRouterProps) {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={routerBase}>
       <Routes>
         <Route path="/" element={app} />
         <Route path="/downloads/*" element={downloads} />

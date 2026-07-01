@@ -6,9 +6,11 @@
   "platform_api_url": "https://heen1987.github.io/teleconsmonthlyreport",
   "platform_index_url": "https://heen1987.github.io/teleconsmonthlyreport/platform/index.json",
   "web_console_url": "https://heen1987.github.io/teleconsmonthlyreport/",
+  "app_url": "https://heen1987.github.io/teleconsmonthlyreport/app/",
   "public_urls": {
     "platform_index": "https://heen1987.github.io/teleconsmonthlyreport/platform/index.json",
     "web_console": "https://heen1987.github.io/teleconsmonthlyreport/",
+    "app": "https://heen1987.github.io/teleconsmonthlyreport/app/",
     "run_hub": "https://heen1987.github.io/teleconsmonthlyreport/run/",
     "execution_json": "https://heen1987.github.io/teleconsmonthlyreport/run/execution.json",
     "apk_download_page": "https://heen1987.github.io/teleconsmonthlyreport/downloads/",
