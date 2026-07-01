@@ -29,7 +29,8 @@ require_env AIPMS_RELEASE_STORE_PASSWORD
 require_env AIPMS_RELEASE_KEY_ALIAS
 require_env AIPMS_RELEASE_KEY_PASSWORD
 
-PLATFORM_URL="${AIPMS_PLATFORM_BASE_URL:-${AIPMS_PUBLIC_PLATFORM_URL:-${AIPMS_PLATFORM_API_URL:-}}}"
+DEFAULT_GITHUB_PAGES_PLATFORM_URL="${AIPMS_GITHUB_PAGES_URL:-https://heen1987.github.io/teleconsmonthlyreport}"
+PLATFORM_URL="${AIPMS_PLATFORM_BASE_URL:-${AIPMS_PUBLIC_PLATFORM_URL:-${AIPMS_PLATFORM_API_URL:-$DEFAULT_GITHUB_PAGES_PLATFORM_URL}}}"
 COLLECTION_URL="${AIPMS_COLLECTION_BASE_URL:-${AIPMS_PUBLIC_COLLECTION_URL:-}}"
 if [ -z "$COLLECTION_URL" ]; then
   COLLECTION_URL="$(extract_url collection || true)"
@@ -38,12 +39,13 @@ fi
 require_platform_server_url() {
   if [ -z "$PLATFORM_URL" ]; then
     cat >&2 <<'EOF'
-Platform server URL is required for release Android builds.
+Platform URL is required for release Android builds.
 
 Set one of:
   AIPMS_PLATFORM_BASE_URL=https://<platform-server-url>
   AIPMS_PUBLIC_PLATFORM_URL=https://<platform-server-url>
   AIPMS_PLATFORM_API_URL=https://<platform-server-url>
+  AIPMS_GITHUB_PAGES_URL=https://heen1987.github.io/teleconsmonthlyreport
 
 Do not build the release APK against a LAN IP or this PC.
 EOF

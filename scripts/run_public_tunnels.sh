@@ -12,7 +12,8 @@ WEB_ALLOW_PUBLIC_BIND="${AIPMS_WEB_ALLOW_PUBLIC_BIND:-0}"
 WEB_CACHE_DIR="${AIPMS_WEB_NODE_MODULES_CACHE:-$HOME/.cache/ai-pms/web_client}"
 WEB_NODE_MODULES_DIR="$WEB_CACHE_DIR/node_modules"
 WEB_PUBLIC_RUNTIME_DIR="${AIPMS_WEB_PUBLIC_RUNTIME_DIR:-/tmp/ai_pms_web_public_runtime}"
-PLATFORM_URL="${AIPMS_PUBLIC_PLATFORM_URL:-${AIPMS_PLATFORM_API_URL:-${AIPMS_PLATFORM_URL:-}}}"
+DEFAULT_GITHUB_PAGES_PLATFORM_URL="${AIPMS_GITHUB_PAGES_URL:-https://heen1987.github.io/teleconsmonthlyreport}"
+PLATFORM_URL="${AIPMS_PUBLIC_PLATFORM_URL:-${AIPMS_PLATFORM_API_URL:-${AIPMS_PLATFORM_URL:-$DEFAULT_GITHUB_PAGES_PLATFORM_URL}}}"
 
 mkdir -p "$TUNNEL_DIR"
 
@@ -55,7 +56,7 @@ ensure_local_service() {
 require_platform_server_url() {
   if [ -z "$PLATFORM_URL" ]; then
     cat >&2 <<'EOF'
-AIPMS_PLATFORM_URL or AIPMS_PLATFORM_API_URL is required.
+AIPMS_PLATFORM_URL, AIPMS_PLATFORM_API_URL, or AIPMS_GITHUB_PAGES_URL is required.
 
 This script no longer exposes a local Platform API tunnel. Public Web and
 Android builds must point to the Platform server URL.
@@ -213,7 +214,7 @@ Web:
   $web_url
 
 Platform API:
-  $PLATFORM_URL/docs
+  $PLATFORM_URL/platform/index.json
 
 Collection API:
   $collection_url/docs

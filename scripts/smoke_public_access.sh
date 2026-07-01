@@ -19,7 +19,7 @@ URL resolution order:
 Examples:
   bash scripts/smoke_public_access.sh
   bash scripts/smoke_public_access.sh https://web.example.com https://api.example.com https://collection.example.com https://analysis.example.com
-  AIPMS_PUBLIC_WEB_URL=https://web.example.com AIPMS_PLATFORM_API_URL=https://platform.example.com bash scripts/smoke_public_access.sh
+  AIPMS_PUBLIC_WEB_URL=https://web.example.com AIPMS_GITHUB_PAGES_URL=https://heen1987.github.io/teleconsmonthlyreport bash scripts/smoke_public_access.sh
 EOF
 }
 
@@ -79,7 +79,7 @@ resolve_platform_url() {
   fi
   url="${url%/}"
   if [ -z "$url" ]; then
-    fail "Missing public URL for Platform. Set AIPMS_PLATFORM_URL or AIPMS_PLATFORM_API_URL to the Platform server URL."
+    fail "Missing public URL for Platform. Set AIPMS_GITHUB_PAGES_URL, AIPMS_PLATFORM_URL, or AIPMS_PLATFORM_API_URL."
   fi
   case "$url" in
     http://127.*|https://127.*|http://localhost*|https://localhost*|\
@@ -92,8 +92,9 @@ resolve_platform_url() {
   printf "%s" "$url"
 }
 
+DEFAULT_GITHUB_PAGES_PLATFORM_URL="${AIPMS_GITHUB_PAGES_URL:-https://heen1987.github.io/teleconsmonthlyreport}"
 WEB_URL="$(resolve_url web "${1:-}" "${AIPMS_PUBLIC_WEB_URL:-}")"
-PLATFORM_URL="$(resolve_platform_url "${2:-}" "${AIPMS_PUBLIC_PLATFORM_URL:-${AIPMS_PLATFORM_API_URL:-${AIPMS_PLATFORM_URL:-}}}")"
+PLATFORM_URL="$(resolve_platform_url "${2:-}" "${AIPMS_PUBLIC_PLATFORM_URL:-${AIPMS_PLATFORM_API_URL:-${AIPMS_PLATFORM_URL:-$DEFAULT_GITHUB_PAGES_PLATFORM_URL}}}")"
 COLLECTION_URL="$(resolve_url collection "${3:-}" "${AIPMS_PUBLIC_COLLECTION_URL:-}")"
 ANALYSIS_URL="${4:-${AIPMS_PUBLIC_ANALYSIS_URL:-$COLLECTION_URL}}"
 ANALYSIS_URL="${ANALYSIS_URL%/}"
@@ -147,7 +148,10 @@ check_get "Web public access" "$WEB_URL/" /tmp/aipms-public-web.html
 check_get "Web execution hub route" "$WEB_URL/run/" /tmp/aipms-public-run.html
 check_get "Web execution hub static" "$WEB_URL/run/index.html" /tmp/aipms-public-run-index.html
 check_get "Web execution JSON" "$WEB_URL/run/execution.json" /tmp/aipms-public-run.json
-check_get "Platform public health" "$PLATFORM_URL/health" /tmp/aipms-public-platform.json
+case "$PLATFORM_URL" in
+  *github.io*) check_get "Platform static index" "$PLATFORM_URL/platform/index.json" /tmp/aipms-public-platform.json ;;
+  *) check_get "Platform public health" "$PLATFORM_URL/health" /tmp/aipms-public-platform.json ;;
+esac
 check_get "Collection public health" "$COLLECTION_URL/health" /tmp/aipms-public-collection.json
 check_get "Analysis public health" "$ANALYSIS_URL/health" /tmp/aipms-public-analysis.json
 check_get "Web APK download route" "$WEB_URL/downloads/" /tmp/aipms-public-downloads.html
@@ -197,18 +201,23 @@ if [ "$source_status" = "200" ]; then
   check_contains "Web source public handoff route" /tmp/aipms-public-main.tsx "PublicHandoffPage"
 fi
 
-cors_status="$(
-  curl -sS --connect-timeout "$CONNECT_TIMEOUT" --max-time "$MAX_TIME" -o /tmp/aipms-public-cors-body.txt -w '%{http_code}' \
-    -X OPTIONS "$PLATFORM_URL/users/me" \
-    -H "Origin: $WEB_URL" \
-    -H "Access-Control-Request-Method: GET" \
-    -H "Access-Control-Request-Headers: Authorization,Content-Type" \
-    || true
-)"
-if [ "$cors_status" != "200" ]; then
-  echo "Platform public CORS preflight failed: HTTP $cors_status" >&2
-  cat /tmp/aipms-public-cors-body.txt >&2 || true
-  fail "Public access smoke failed at: Platform public CORS preflight"
-fi
+case "$PLATFORM_URL" in
+  *github.io*) cors_status="static-index" ;;
+  *)
+    cors_status="$(
+      curl -sS --connect-timeout "$CONNECT_TIMEOUT" --max-time "$MAX_TIME" -o /tmp/aipms-public-cors-body.txt -w '%{http_code}' \
+        -X OPTIONS "$PLATFORM_URL/users/me" \
+        -H "Origin: $WEB_URL" \
+        -H "Access-Control-Request-Method: GET" \
+        -H "Access-Control-Request-Headers: Authorization,Content-Type" \
+        || true
+    )"
+    if [ "$cors_status" != "200" ]; then
+      echo "Platform public CORS preflight failed: HTTP $cors_status" >&2
+      cat /tmp/aipms-public-cors-body.txt >&2 || true
+      fail "Public access smoke failed at: Platform public CORS preflight"
+    fi
+    ;;
+esac
 
 echo "{'web': '200', 'run': '200', 'run_static': '200', 'run_json': '200', 'downloads': '200', 'install_guide': '200', 'handoff': '200', 'handoff_static': '200', 'review_package': '200', 'response_template': '200', 'requirements_manifest': '200', 'requirements_markdown': '200', 'requirements_docx': '200', 'apk': '200', 'apk_alias': '200', 'platform': '200', 'collection': '200', 'analysis': '200', 'cors': '$cors_status'}"

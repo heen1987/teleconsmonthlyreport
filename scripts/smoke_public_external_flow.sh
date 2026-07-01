@@ -42,7 +42,7 @@ resolve_platform_url() {
   fi
   url="${url%/}"
   if [ -z "$url" ]; then
-    echo "Missing public URL for Platform. Set AIPMS_PLATFORM_URL or AIPMS_PLATFORM_API_URL to the Platform server URL." >&2
+    echo "Missing public URL for Platform. Set AIPMS_GITHUB_PAGES_URL, AIPMS_PLATFORM_URL, or AIPMS_PLATFORM_API_URL." >&2
     exit 1
   fi
   case "$url" in
@@ -57,8 +57,9 @@ resolve_platform_url() {
   printf "%s" "$url"
 }
 
+DEFAULT_GITHUB_PAGES_PLATFORM_URL="${AIPMS_GITHUB_PAGES_URL:-https://heen1987.github.io/teleconsmonthlyreport}"
 AIPMS_PUBLIC_WEB_URL="$(resolve_url web "${1:-}" "${AIPMS_PUBLIC_WEB_URL:-}")"
-AIPMS_PUBLIC_PLATFORM_URL="$(resolve_platform_url "${2:-}" "${AIPMS_PUBLIC_PLATFORM_URL:-${AIPMS_PLATFORM_API_URL:-${AIPMS_PLATFORM_URL:-}}}")"
+AIPMS_PUBLIC_PLATFORM_URL="$(resolve_platform_url "${2:-}" "${AIPMS_PUBLIC_PLATFORM_URL:-${AIPMS_PLATFORM_API_URL:-${AIPMS_PLATFORM_URL:-$DEFAULT_GITHUB_PAGES_PLATFORM_URL}}}")"
 AIPMS_PUBLIC_COLLECTION_URL="$(resolve_url collection "${3:-}" "${AIPMS_PUBLIC_COLLECTION_URL:-}")"
 AIPMS_PUBLIC_ANALYSIS_URL="${4:-${AIPMS_PUBLIC_ANALYSIS_URL:-$AIPMS_PUBLIC_COLLECTION_URL}}"
 export AIPMS_PUBLIC_WEB_URL

@@ -29,12 +29,19 @@ print_service() {
 }
 
 print_platform_server() {
-  local url="${AIPMS_PUBLIC_PLATFORM_URL:-${AIPMS_PLATFORM_API_URL:-${AIPMS_PLATFORM_URL:-}}}"
+  local default_url="${AIPMS_GITHUB_PAGES_URL:-https://heen1987.github.io/teleconsmonthlyreport}"
+  local url="${AIPMS_PUBLIC_PLATFORM_URL:-${AIPMS_PLATFORM_API_URL:-${AIPMS_PLATFORM_URL:-$default_url}}}"
   if [ -n "$url" ]; then
-    printf "Platform API health:\n  %s/health\n" "${url%/}"
-    printf "Platform API docs:\n  %s/docs\n" "${url%/}"
+    printf "Platform index:\n  %s/platform/index.json\n" "${url%/}"
+    case "$url" in
+      *github.io*) ;;
+      *)
+        printf "Platform API health:\n  %s/health\n" "${url%/}"
+        printf "Platform API docs:\n  %s/docs\n" "${url%/}"
+        ;;
+    esac
   else
-    printf "Platform API:\n  not configured; set AIPMS_PLATFORM_URL or AIPMS_PLATFORM_API_URL to the Platform server URL\n"
+    printf "Platform API:\n  not configured; set AIPMS_GITHUB_PAGES_URL, AIPMS_PLATFORM_URL, or AIPMS_PLATFORM_API_URL\n"
   fi
 }
 
@@ -42,7 +49,7 @@ cat <<EOF
 AI-PMS public tunnel URLs
 
 EOF
-print_service "Web client" "web" "" "${AIPMS_PUBLIC_WEB_URL:-${AIPMS_GITHUB_PAGES_URL:-}}"
+print_service "Web client" "web" "" "${AIPMS_PUBLIC_WEB_URL:-${AIPMS_GITHUB_PAGES_URL:-https://heen1987.github.io/teleconsmonthlyreport}}"
 print_platform_server
 print_service "Collection API health" "collection" "/health" "${AIPMS_PUBLIC_COLLECTION_URL:-}"
 print_service "Collection API docs" "collection" "/docs" "${AIPMS_PUBLIC_COLLECTION_URL:-}"

@@ -16,8 +16,9 @@ extract_url() {
 
 ANDROID_CLEAN_BUILD="${ANDROID_CLEAN_BUILD:-1}"
 AIPMS_ANDROID_TEMP_BUILD="${AIPMS_ANDROID_TEMP_BUILD:-1}"
+DEFAULT_GITHUB_PAGES_PLATFORM_URL="${AIPMS_GITHUB_PAGES_URL:-https://heen1987.github.io/teleconsmonthlyreport}"
 
-PLATFORM_URL="${AIPMS_PLATFORM_BASE_URL:-${AIPMS_PUBLIC_PLATFORM_URL:-${AIPMS_PLATFORM_API_URL:-}}}"
+PLATFORM_URL="${AIPMS_PLATFORM_BASE_URL:-${AIPMS_PUBLIC_PLATFORM_URL:-${AIPMS_PLATFORM_API_URL:-$DEFAULT_GITHUB_PAGES_PLATFORM_URL}}}"
 COLLECTION_URL="${AIPMS_COLLECTION_BASE_URL:-${AIPMS_PUBLIC_COLLECTION_URL:-}}"
 if [ -z "$COLLECTION_URL" ]; then
   COLLECTION_URL="$(extract_url collection || true)"
@@ -26,12 +27,13 @@ fi
 require_platform_server_url() {
   if [ -z "$PLATFORM_URL" ]; then
     cat >&2 <<'EOF'
-Platform server URL is required for public Android builds.
+Platform URL is required for public Android builds.
 
 Set one of:
   AIPMS_PLATFORM_BASE_URL=https://<platform-server-url>
   AIPMS_PUBLIC_PLATFORM_URL=https://<platform-server-url>
   AIPMS_PLATFORM_API_URL=https://<platform-server-url>
+  AIPMS_GITHUB_PAGES_URL=https://heen1987.github.io/teleconsmonthlyreport
 
 Do not build the public APK against a LAN IP or this PC.
 EOF

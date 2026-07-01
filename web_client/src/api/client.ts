@@ -32,9 +32,79 @@ import type {
 
 // ── 환경 설정 ──────────────────────────────────
 // VITE_API_BASE 환경변수로 오버라이드 가능. 기본값은 현재 호스트의 8000 포트.
-export const API_BASE =
-  import.meta.env.VITE_API_BASE ??
-  `${window.location.protocol}//${window.location.hostname}:8000`;
+const DEFAULT_GITHUB_PAGES_PLATFORM_URL = "https://heen1987.github.io/teleconsmonthlyreport";
+
+type PlatformIndex = {
+  kind?: string;
+  mode?: string;
+  platform_api_url?: string;
+  api_base_url?: string;
+  public_urls?: {
+    platform_api?: string;
+    platform_health?: string;
+  };
+};
+
+function normalizeBaseUrl(value: string): string {
+  return value.trim().replace(/\/+$/, "");
+}
+
+function githubPagesBaseFromLocation(): string {
+  if (typeof window === "undefined") return DEFAULT_GITHUB_PAGES_PLATFORM_URL;
+  const firstPath = window.location.pathname.split("/").filter(Boolean)[0];
+  return normalizeBaseUrl(`${window.location.origin}${firstPath ? `/${firstPath}` : ""}`);
+}
+
+function defaultApiBase(): string {
+  const configured = (import.meta.env.VITE_API_BASE as string | undefined)?.trim();
+  if (configured) return normalizeBaseUrl(configured);
+  if (typeof window !== "undefined" && window.location.hostname.endsWith("github.io")) {
+    return githubPagesBaseFromLocation();
+  }
+  if (typeof window !== "undefined") {
+    return `${window.location.protocol}//${window.location.hostname}:8000`;
+  }
+  return DEFAULT_GITHUB_PAGES_PLATFORM_URL;
+}
+
+export const API_BASE = defaultApiBase();
+
+const configuredPlatformIndexUrl = (import.meta.env.VITE_PLATFORM_INDEX_URL as string | undefined)?.trim();
+let resolvedApiBasePromise: Promise<string> | null = null;
+
+function shouldLoadPlatformIndex(baseUrl: string): boolean {
+  return Boolean(configuredPlatformIndexUrl) || baseUrl.includes("github.io");
+}
+
+function platformIndexUrl(baseUrl: string): string {
+  if (configuredPlatformIndexUrl) return configuredPlatformIndexUrl;
+  return `${baseUrl}/platform/index.json`;
+}
+
+function apiBaseFromPlatformIndex(index: PlatformIndex): string | null {
+  const direct = index.platform_api_url || index.api_base_url || index.public_urls?.platform_api;
+  if (direct) return normalizeBaseUrl(direct);
+  const health = index.public_urls?.platform_health;
+  if (health?.endsWith("/health")) return normalizeBaseUrl(health.slice(0, -"/health".length));
+  return null;
+}
+
+async function getApiBase(): Promise<string> {
+  if (!shouldLoadPlatformIndex(API_BASE)) return API_BASE;
+  if (!resolvedApiBasePromise) {
+    resolvedApiBasePromise = fetch(platformIndexUrl(API_BASE), {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    })
+      .then(async (response) => {
+        if (!response.ok) return API_BASE;
+        const index = (await response.json()) as PlatformIndex;
+        return apiBaseFromPlatformIndex(index) ?? API_BASE;
+      })
+      .catch(() => API_BASE);
+  }
+  return resolvedApiBasePromise;
+}
 
 // ── 401 핸들러 레지스트리 ───────────────────────
 /**
@@ -74,7 +144,8 @@ export async function api<T>(
   };
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
-  const response = await fetch(`${API_BASE}${path}`, {
+  const apiBase = await getApiBase();
+  const response = await fetch(`${apiBase}${path}`, {
     ...init,
     headers: { ...headers, ...(init?.headers ?? {}) },
   });

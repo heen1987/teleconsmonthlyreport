@@ -39,30 +39,61 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Validate Platform server URL
+      - name: Resolve GitHub Pages platform index
         env:
           AIPMS_PLATFORM_URL: ${{ vars.AIPMS_PLATFORM_URL || '' }}
+          AIPMS_PAGES_BASE_PATH: ${{ vars.AIPMS_PAGES_BASE_PATH || '' }}
+          REPOSITORY_NAME: ${{ github.event.repository.name }}
         run: |
-          if [ -z "$AIPMS_PLATFORM_URL" ]; then
-            echo "AIPMS_PLATFORM_URL repository variable is required." >&2
-            echo "Set it to the Platform server public HTTPS URL." >&2
-            exit 2
-          fi
-          case "$AIPMS_PLATFORM_URL" in
+          pages_url="${AIPMS_PLATFORM_URL:-https://${GITHUB_REPOSITORY_OWNER}.github.io/${REPOSITORY_NAME}}"
+          base_path="${AIPMS_PAGES_BASE_PATH:-/${REPOSITORY_NAME}/}"
+          case "$pages_url" in
             http://127.*|https://127.*|http://localhost*|https://localhost*|\
             http://10.*|https://10.*|http://192.168.*|https://192.168.*|\
             http://172.1[6-9].*|https://172.1[6-9].*|http://172.2[0-9].*|https://172.2[0-9].*|\
             http://172.3[0-1].*|https://172.3[0-1].*)
-              echo "AIPMS_PLATFORM_URL must be the Platform server URL, not a local/LAN IP: $AIPMS_PLATFORM_URL" >&2
+              echo "AIPMS_PLATFORM_URL must be the GitHub Pages platform URL or another public HTTPS URL, not a local/LAN IP: $pages_url" >&2
               exit 2
               ;;
           esac
+          mkdir -p public/platform
+          cat > public/platform/index.json <<EOF
+          {
+            "kind": "meetflow_platform_index",
+            "version": 1,
+            "mode": "github_pages_static_index",
+            "platform_base_url": "$pages_url",
+            "platform_api_url": "$pages_url",
+            "platform_index_url": "$pages_url/platform/index.json",
+            "web_console_url": "$pages_url/",
+            "public_urls": {
+              "platform_index": "$pages_url/platform/index.json",
+              "web_console": "$pages_url/",
+              "run_hub": "$pages_url/run/",
+              "execution_json": "$pages_url/run/execution.json",
+              "apk_download_page": "$pages_url/downloads/",
+              "apk_file": "$pages_url/downloads/AI-PMS-Recorder.apk"
+            },
+            "capabilities": {
+              "static_index": true,
+              "static_web": true,
+              "dynamic_rest_api": false,
+              "server_side_callbacks": false
+            }
+          }
+          EOF
+          {
+            echo "AIPMS_RESOLVED_PLATFORM_URL=$pages_url"
+            echo "AIPMS_RESOLVED_PLATFORM_INDEX_URL=$pages_url/platform/index.json"
+            echo "AIPMS_RESOLVED_BASE_PATH=$base_path"
+          } >> "$GITHUB_ENV"
 
       - name: Build
-        env:
-          VITE_API_BASE: ${{ vars.AIPMS_PLATFORM_URL || '' }}
-          VITE_BASE_PATH: ${{ vars.AIPMS_PAGES_BASE_PATH || '/llm-meeting-assistant/' }}
-        run: npm run build
+        run: |
+          VITE_API_BASE="$AIPMS_RESOLVED_PLATFORM_URL" \
+          VITE_PLATFORM_INDEX_URL="$AIPMS_RESOLVED_PLATFORM_INDEX_URL" \
+          VITE_BASE_PATH="$AIPMS_RESOLVED_BASE_PATH" \
+          npm run build
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

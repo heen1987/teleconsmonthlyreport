@@ -1,0 +1,27 @@
+{
+  "kind": "meetflow_platform_index",
+  "version": 1,
+  "mode": "github_pages_static_index",
+  "platform_base_url": "https://heen1987.github.io/teleconsmonthlyreport",
+  "platform_api_url": "https://heen1987.github.io/teleconsmonthlyreport",
+  "platform_index_url": "https://heen1987.github.io/teleconsmonthlyreport/platform/index.json",
+  "web_console_url": "https://heen1987.github.io/teleconsmonthlyreport/",
+  "public_urls": {
+    "platform_index": "https://heen1987.github.io/teleconsmonthlyreport/platform/index.json",
+    "web_console": "https://heen1987.github.io/teleconsmonthlyreport/",
+    "run_hub": "https://heen1987.github.io/teleconsmonthlyreport/run/",
+    "execution_json": "https://heen1987.github.io/teleconsmonthlyreport/run/execution.json",
+    "apk_download_page": "https://heen1987.github.io/teleconsmonthlyreport/downloads/",
+    "apk_file": "https://heen1987.github.io/teleconsmonthlyreport/downloads/AI-PMS-Recorder.apk"
+  },
+  "capabilities": {
+    "static_index": true,
+    "static_web": true,
+    "dynamic_rest_api": false,
+    "server_side_callbacks": false
+  },
+  "notes": [
+    "Use this document as the first index call from Web, Android, and Mac mini scripts.",
+    "GitHub Pages is static hosting. POST/PUT/PATCH API calls require a separate runtime adapter or a GitHub API write bridge."
+  ]
+}

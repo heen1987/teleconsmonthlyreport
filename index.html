@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MEETFLOW Platform Index</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: #f5f7fa;
+        color: #172033;
+      }
+      main {
+        max-width: 880px;
+        margin: 0 auto;
+        padding: 48px 20px;
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 32px;
+      }
+      p {
+        line-height: 1.6;
+      }
+      code {
+        background: #e9eef5;
+        border-radius: 4px;
+        padding: 2px 5px;
+      }
+      .links {
+        display: grid;
+        gap: 10px;
+        margin-top: 28px;
+      }
+      a {
+        color: #075d8f;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>MEETFLOW Platform Index</h1>
+      <p>
+        This GitHub Pages site is the static platform index for MEETFLOW.
+        Clients should read <code>/platform/index.json</code> first and then use
+        the URLs declared there.
+      </p>
+      <p>
+        GitHub Pages can serve static HTML and JSON. Dynamic PMS API operations
+        such as login, project updates, and callbacks still require a runtime
+        API endpoint or a GitHub-backed write adapter.
+      </p>
+      <div class="links">
+        <a href="./platform/index.json">Platform index JSON</a>
+        <a href="./web_client/public/run/">Run hub source path</a>
+        <a href="./web_client/public/downloads/">APK downloads source path</a>
+        <a href="./README.md">Repository README</a>
+      </div>
+    </main>
+  </body>
+</html>

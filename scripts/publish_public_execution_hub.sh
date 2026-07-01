@@ -28,7 +28,8 @@ require_url() {
 }
 
 WEB_URL="${AIPMS_PUBLIC_WEB_URL:-$(extract_url web || true)}"
-PLATFORM_URL="${AIPMS_PUBLIC_PLATFORM_URL:-${AIPMS_PLATFORM_API_URL:-${AIPMS_PLATFORM_URL:-}}}"
+DEFAULT_GITHUB_PAGES_PLATFORM_URL="${AIPMS_GITHUB_PAGES_URL:-https://heen1987.github.io/teleconsmonthlyreport}"
+PLATFORM_URL="${AIPMS_PUBLIC_PLATFORM_URL:-${AIPMS_PLATFORM_API_URL:-${AIPMS_PLATFORM_URL:-$DEFAULT_GITHUB_PAGES_PLATFORM_URL}}}"
 COLLECTION_URL="${AIPMS_PUBLIC_COLLECTION_URL:-$(extract_url collection || true)}"
 ANALYSIS_URL="${AIPMS_PUBLIC_ANALYSIS_URL:-$COLLECTION_URL}"
 
@@ -104,8 +105,9 @@ execution = {
         "requirements_docx": f"{web_url}/requirements/{requirements_docx}",
         "requirements_markdown": f"{web_url}/requirements/{requirements_md}",
         "requirements_manifest": f"{web_url}/requirements/requirements.json",
-        "platform_health": f"{platform_url}/health",
-        "platform_docs": f"{platform_url}/docs",
+        "platform_index": f"{platform_url}/platform/index.json",
+        "platform_health": f"{platform_url}/platform/index.json" if "github.io" in platform_url else f"{platform_url}/health",
+        "platform_docs": f"{platform_url}/" if "github.io" in platform_url else f"{platform_url}/docs",
         "collection_health": f"{collection_url}/health",
         "collection_docs": f"{collection_url}/docs",
         "analysis_health": f"{analysis_url}/health",
