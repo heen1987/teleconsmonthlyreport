@@ -1079,17 +1079,9 @@ function App() {
           )}
         </nav>
         <div className="sidebar-spacer" />
-        <a className="sidebar-utility" href={RUN_PATH} target="_blank" rel="noreferrer">
-          <Activity size={17} />
-          <span>실행 허브</span>
-        </a>
         <a className="sidebar-utility" href={APK_DOWNLOAD_PATH} target="_blank" rel="noreferrer">
           <Download size={17} />
           <span>APK 다운로드</span>
-        </a>
-        <a className="sidebar-utility" href={HANDOFF_PATH} target="_blank" rel="noreferrer">
-          <BookOpen size={17} />
-          <span>파트 전달안</span>
         </a>
       </aside>
 
@@ -1186,41 +1178,74 @@ function App() {
           onRefreshKnowledge={() => loadKnowledgeItems().catch((error) => setMessage(error.message))}
         />
       ) : activeView === "minutes" ? (
-        <MinutesConsole
-          dashboard={dashboard}
-          projects={projects}
-          review={review}
-          resourceProfiles={resourceProfiles}
-          resourceAvailability={resourceAvailability}
-          resourceUsage={resourceUsage}
-          costCandidates={costCandidates}
-          distributionLogs={distributionLogs}
-          recentMeetings={recentMeetings}
-          operationQueue={operationQueue}
-          selectedProject={selectedProject}
-          selectedProjectDetail={selectedProjectDetail}
-          knowledgeItems={knowledgeItems}
-          knowledgeItemKind={knowledgeItemKind}
-          knowledgeSearchTerm={knowledgeSearchTerm}
-          canRunErpHandoff={canRunErpHandoff}
-          canViewSensitiveStaffing={canViewSensitiveStaffing}
-          onKnowledgeProjectChange={setSelectedProject}
-          onKnowledgeItemKindChange={setKnowledgeItemKind}
-          onKnowledgeSearchTermChange={setKnowledgeSearchTerm}
-          onRefreshKnowledge={() => loadKnowledgeItems().catch((error) => setMessage(error.message))}
-          onReviewCostCandidate={(costId, status) => reviewCostCandidate(costId, status).catch((error) => setMessage(error.message))}
-          onRunOverdueRiskPromotion={() => runOverdueRiskPromotion().catch((error) => setMessage(error.message))}
-          onRunCostRiskPromotion={() => runCostRiskPromotion().catch((error) => setMessage(error.message))}
-          onRunResourceConflictRiskPromotion={() => runResourceConflictRiskPromotion().catch((error) => setMessage(error.message))}
-          onRunUnassignedResourceDemandRiskPromotion={() => runUnassignedResourceDemandRiskPromotion().catch((error) => setMessage(error.message))}
-          onRunResourceUsageOverrunRiskPromotion={() => runResourceUsageOverrunRiskPromotion().catch((error) => setMessage(error.message))}
-          onRunEmailRetryDue={() => runEmailRetryDue().catch((error) => setMessage(error.message))}
-          onRunErpHandoffSendDue={() => runErpHandoffSendDue().catch((error) => setMessage(error.message))}
-          onOpenMeeting={(targetMeetingId) => {
-            setMeetingId(targetMeetingId);
-            setActiveView("review");
-          }}
-        />
+        <section className="workspace">
+          <aside>
+            <h2>Projects</h2>
+            <select value={selectedProject} onChange={(event) => setSelectedProject(event.target.value)}>
+              <option value="">선택</option>
+              {projects.map((project) => (
+                <option key={project.project_id} value={project.project_id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+            {activeProject && (
+              <dl>
+                <dt>Project ID</dt>
+                <dd>{activeProject.project_id}</dd>
+                <dt>Status</dt>
+                <dd>{activeProject.status}</dd>
+              </dl>
+            )}
+          </aside>
+
+          <section className="review">
+            <div className="toolbar">
+              <input
+                value={meetingId}
+                onChange={(event) => setMeetingId(event.target.value)}
+                placeholder="Meeting ID"
+              />
+              <button onClick={() => loadReview().catch((error) => setMessage(error.message))}>
+                <ClipboardList size={16} /> 검토 불러오기
+              </button>
+              <button disabled={!review?.capabilities.can_edit || !hasUnsavedEdits} onClick={() => saveEdits().catch((error) => setMessage(error.message))}>
+                <Save size={16} /> 저장
+              </button>
+              <button className="secondary" disabled={!hasUnsavedEdits} onClick={resetDraft}>
+                <RotateCcw size={16} /> 되돌리기
+              </button>
+              <button disabled={!review?.capabilities.can_approve || hasUnsavedEdits} onClick={() => approve().catch((error) => setMessage(error.message))}>
+                <Send size={16} /> 승인
+              </button>
+              <button className="secondary" disabled={!review?.capabilities.can_distribute || hasUnsavedEdits} onClick={() => loadDistributionPreview().catch((error) => setMessage(error.message))}>
+                <Mail size={16} /> 배포 미리보기
+              </button>
+            </div>
+
+            {review && draftResult ? (
+              <ReviewPanel
+                review={review}
+                draft={draftResult}
+                editReason={editReason}
+                onDraftChange={setDraftResult}
+                onEditReasonChange={setEditReason}
+              />
+            ) : (
+              <div className="empty">회의록 검토 패키지를 불러오세요.</div>
+            )}
+            {distributionPreview && (
+              <DistributionPanel
+                preview={distributionPreview}
+                logs={distributionLogs}
+                onPreviewChange={setDistributionPreview}
+                onSend={() => distributeMeeting().catch((error) => setMessage(error.message))}
+                onRefreshLogs={() => loadDistributionLogs(distributionPreview.meeting.meeting_id).catch((error) => setMessage(error.message))}
+              />
+            )}
+            {!distributionPreview && distributionLogs.length > 0 && <DistributionLogPanel logs={distributionLogs} />}
+          </section>
+        </section>
       ) : activeView === "review" ? (
         <section className="workspace">
           <aside>
@@ -2347,6 +2372,32 @@ function VisualConsole(props: Parameters<typeof LegacyVisualConsole>[0]) {
 
         <section className="workspace-layout">
 
+          {/* 운영 관리자 대시보드 - 최상단 배치 */}
+          <article className="mf-panel mf-span-12 admin-showcase">
+            <PanelHeader title="운영 관리자 대시보드" action="ADMIN-01" />
+            <div className="admin-metric-strip">
+              <div><span>회사 규모</span><strong>{DEMO_COMPANY_HEADCOUNT}명</strong><small>개발 {DEMO_COMPANY_DEVELOPER_COUNT}명</small></div>
+              <div><span>연매출</span><strong>{DEMO_COMPANY_REVENUE_LABEL}</strong><small>SW 개발회사</small></div>
+              <div><span>본부 구성</span><strong>{DEMO_COMPANY_DIVISION_COUNT}개</strong><small>{DEMO_COMPANY_DIVISIONS.join(" · ")}</small></div>
+              <div><span>전체 프로젝트 수</span><strong>{dashboard?.projects ?? DEMO_COMPANY_PROJECT_COUNT}</strong><small>새싹SW 기준 15건</small></div>
+              <div><span>분석 대기 작업</span><strong>{operationQueue?.email_distributions.retry_due ?? 0}</strong><small>회의 자동화 모듈</small></div>
+              <div><span>배포 실패</span><strong className="danger">{dashboard?.distribution_failures ?? 0}</strong><small>프로젝트 구성원 자동 배포</small></div>
+            </div>
+            <div className="admin-grid">
+              <div className="admin-donut"><strong>{DEMO_COMPANY_PROJECT_COUNT}</strong><span>새싹SW 프로젝트</span></div>
+              <div className="worker-list">
+                {["worker-01", "worker-02", "worker-03", "worker-04", "worker-05"].map((worker, index) => (
+                  <div key={worker}><span>{worker}</span><i style={{ width: `${index === 4 ? 8 : 88 - index * 8}%` }} /><b>{index === 4 ? "오류" : "실행 중"}</b></div>
+                ))}
+              </div>
+              <div className="admin-table">
+                {["텍스트 추출 실패", "S3 업로드 실패", "파서 오류", "이메일 전송 실패"].map((error, index) => (
+                  <div key={error}><span>10:{28 - index * 7}:14</span><b>{error}</b><small>{projectTitle}</small></div>
+                ))}
+              </div>
+            </div>
+          </article>
+
           <article className="mf-panel mf-span-4">
             <PanelHeader title="최근 회의록" action="더보기" />
             <div className="compact-list">
@@ -2390,38 +2441,53 @@ function VisualConsole(props: Parameters<typeof LegacyVisualConsole>[0]) {
             </div>
           </article>
 
+          {/* 통합 대시보드의 업무보드를 내부 업무보드(KanbanBoardConsole)와 동일한 데이터 및 형태로 연동 */}
           <article className="mf-panel mf-span-7">
-            <PanelHeader title="업무보드" action="마감일 임박순" />
+            <PanelHeader title={`업무보드 - ${projectTitle}`} action="업무보드 바로가기" />
             <div className="kanban-board">
-              {boardColumns.map((column) => (
-                <div className="kanban-column" key={column.label}>
-                  <div className="kanban-title">
-                    <strong>{column.label}</strong>
-                    <span>{column.rows.length}</span>
-                    <MoreVertical size={15} />
+              {[
+                { label: "대기", key: "todo", color: "#e2e8f0" },
+                { label: "진행", key: "in_progress", color: "var(--cyan)" },
+                { label: "검토", key: "review", color: "var(--yellow)" },
+                { label: "완료", key: "done", color: "var(--green)" }
+              ].map((column) => {
+                // selectedProjectDetail.tasks 데이터 연동
+                const colTasks = selectedProjectDetail?.tasks ? selectedProjectDetail.tasks.filter(t => {
+                  if (column.key === "todo") {
+                    return t.status === "created" || t.status === "todo" || !t.status;
+                  }
+                  return t.status === column.key;
+                }) : [];
+
+                return (
+                  <div className="kanban-column" key={column.label}>
+                    <div className="kanban-title">
+                      <strong style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                        <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: column.color }} />
+                        {column.label}
+                      </strong>
+                      <span>{colTasks.length}</span>
+                      <MoreVertical size={15} />
+                    </div>
+                    {colTasks.map((t) => (
+                      <div key={t.task_id} className="kanban-card" style={{ padding: "10px", borderRadius: "6px", border: "1px solid var(--line)", background: "#ffffff", display: "grid", gap: "4px", textAlign: "left" }}>
+                        <span style={{ fontSize: "10px", color: "var(--muted)" }}>{t.task_id}</span>
+                        <b style={{ fontSize: "12px", color: "var(--ink)", display: "block" }}>{t.name}</b>
+                        <p style={{ fontSize: "11px", color: "var(--muted)", margin: "0 0 6px 0", lineHeight: "1.3" }}>{t.description}</p>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "10px", fontWeight: "bold" }}>
+                          <span>👤 {t.assignee_name}</span>
+                          <span style={{ color: "var(--rose)" }}>📅 {t.due_date}</span>
+                        </div>
+                      </div>
+                    ))}
+                    {colTasks.length === 0 && (
+                      <div style={{ padding: "15px 0", textAlign: "center", color: "var(--muted)", fontSize: "11px" }}>
+                        업무가 없습니다
+                      </div>
+                    )}
                   </div>
-                  {column.rows.map((row) => (
-                    <button
-                      className="kanban-card"
-                      disabled={!row.meetingId}
-                      key={row.id}
-                      type="button"
-                      onClick={() => row.meetingId && onOpenMeeting(row.meetingId)}
-                    >
-                      <b>{row.title}</b>
-                      <small>{row.meta}</small>
-                      <span>
-                        <CalendarDays size={13} />
-                        {row.date}
-                        <i>{row.tag}</i>
-                      </span>
-                    </button>
-                  ))}
-                  <button className="board-add" type="button">
-                    <Plus size={15} /> 업무 추가
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </article>
 
@@ -2554,61 +2620,6 @@ function VisualConsole(props: Parameters<typeof LegacyVisualConsole>[0]) {
             </div>
           </article>
 
-          <article className="mf-panel mf-span-5 phone-preview-panel">
-            <PanelHeader title="앱 녹음·분석상태" action="APP-01~05" />
-            <div className="phone-frame note-app-preview">
-              <div className="phone-top">
-                <span>9:41</span>
-                <MoreVertical size={16} />
-              </div>
-              <div className="app-note-header">
-                <strong>회의 녹음</strong>
-                <button type="button" aria-label="검색"><Search size={16} /></button>
-              </div>
-              <section className="app-board-card active">
-                <span>{projectTitle}</span>
-                <b>{displayedNoteRows[0]?.title ?? "AI-PMS 주간 진행 회의"}</b>
-                <small>프로젝트 기준 녹음 · 자동 배포</small>
-              </section>
-              <section className="app-recording-card">
-                <div>
-                  <span>녹음 중</span>
-                  <strong>00:12:48</strong>
-                </div>
-                <div className="waveform" aria-hidden="true">
-                  {Array.from({ length: 24 }, (_, index) => <i key={index} style={{ height: `${12 + (index % 7) * 5}px` }} />)}
-                </div>
-                <div className="app-record-controls">
-                  <button type="button"><PauseCircle size={15} /> 일시 정지</button>
-                  <button className="danger" type="button"><Square size={15} /> 녹음 종료</button>
-                </div>
-              </section>
-              <div className="app-note-tabs">
-                <button className="active" type="button">AI 요약</button>
-                <button type="button">스크립트</button>
-              </div>
-              <section className="app-ai-card">
-                <b>회의 요약</b>
-                <p>프로젝트 구성원 자동 배포 정책을 유지하고, Android 실기기 녹음 업로드를 다음 확인 대상으로 둡니다.</p>
-                <div>
-                  <span>Action</span>
-                  <small>API 계약 검증 · APK 설치 테스트</small>
-                </div>
-              </section>
-              <div className="app-script-snippet">
-                <span>구간 01 · 00:03</span>
-                <p>Project_ID 기준으로 녹음과 분석 문맥을 고정합니다.</p>
-              </div>
-              <div className="phone-bottom-nav">
-                <Home size={17} />
-                <Folder size={17} />
-                <Mic size={17} />
-                <FileText size={17} />
-                <Menu size={17} />
-              </div>
-            </div>
-          </article>
-
           <article className="mf-panel mf-span-4">
             <PanelHeader title="회의록 검토·승인" action="WEB-04" />
             <div className="review-summary-card">
@@ -2687,102 +2698,6 @@ function VisualConsole(props: Parameters<typeof LegacyVisualConsole>[0]) {
               <span>후보 비용</span>
               <strong>{formatCurrency(totalCandidateCost, candidateCurrency)}</strong>
               <small>usage {resourceUsage.length} · sent {latestDistribution?.attempts.length ?? 0}</small>
-            </div>
-          </article>
-
-          <article className="mf-panel mf-span-12 app-flow-showcase">
-            <PanelHeader title="Android 앱 화면 흐름" action="APP-01~05" />
-            <div className="app-screen-strip">
-              <div className="mini-phone">
-                <strong className="mini-logo">{PRODUCT_BRAND_NAME}</strong>
-                <div className="mini-input">이메일 주소</div>
-                <div className="mini-input">비밀번호</div>
-                <button type="button">로그인</button>
-                <h4>프로젝트 바로가기</h4>
-                {projectQuickRows.slice(0, 3).map((project) => (
-                  <div className="mini-project" key={project.id}>
-                    <Folder size={15} />
-                    <span>{project.name}</span>
-                    <b>{project.progress}%</b>
-                  </div>
-                ))}
-                <div className="mini-bottom"><Home size={15} /><Folder size={15} /><Mic size={15} /><FileText size={15} /><Menu size={15} /></div>
-              </div>
-              <div className="mini-phone">
-                <h4>프로젝트 선택</h4>
-                <div className="mini-step">1 프로젝트 선택</div>
-                {projectQuickRows.slice(0, 3).map((project, index) => (
-                  <div className={`mini-project ${index === 0 ? "selected" : ""}`} key={project.id}>
-                    <Folder size={15} />
-                    <span>{project.name}</span>
-                    <b>{index === 0 ? <Check size={14} /> : `${project.progress}%`}</b>
-                  </div>
-                ))}
-                <div className="mini-step">2 자동 배포 대상 확인</div>
-                <div className="mini-avatars"><span>PM</span><span>PL</span><span>DEV</span><span>QA</span><em>ALL</em></div>
-                <div className="mini-input">프로젝트 구성원 전체 자동 배포</div>
-                <button type="button">회의 설정으로 이동</button>
-              </div>
-              <div className="mini-phone">
-                <h4>회의 설정</h4>
-                <div className="mini-form-row">회의 제목 <b>16/100</b></div>
-                <div className="mini-form-row">프로젝트 <b>{projectTitle}</b></div>
-                <div className="mini-form-grid"><span>2026.07.01</span><span>10:00</span></div>
-                <div className="mini-segment"><b>정기 회의</b><span>임시 회의</span><span>외부 회의</span></div>
-                <div className="mini-stats"><span>구성원 3명</span><span>프로젝트 15개</span><span>수동선택 없음</span></div>
-                <div className="mini-textarea">새싹SW 프로젝트 진행 현황 공유 및 주요 이슈 논의</div>
-                <button type="button">회의 시작</button>
-              </div>
-              <div className="mini-phone">
-                <h4>회의 녹음</h4>
-                <section className="mini-record">
-                  <span>녹음 중</span>
-                  <strong>00:12:48</strong>
-                  <div className="waveform small" aria-hidden="true">
-                    {Array.from({ length: 22 }, (_, index) => <i key={index} style={{ height: `${10 + (index % 6) * 4}px` }} />)}
-                  </div>
-                  <small>마이크 입력 중</small>
-                </section>
-                <div className="mini-actions"><button type="button">중요 구간</button><button type="button">일시 정지</button></div>
-                <div className="mini-avatars"><span>PM</span><span>PL</span><span>DEV</span><span>QA</span><em>ALL</em></div>
-                <div className="mini-upload">업로드 준비 완료 <b>12.4 MB</b></div>
-                <button className="danger" type="button">녹음 종료</button>
-              </div>
-              <div className="mini-phone">
-                <h4>업로드·분석상태</h4>
-                <div className="mini-file"><FileText size={18} /><span>meeting_20260701.wav</span><b>업로드 완료</b></div>
-                <div className="mini-process done">파일 검증 <b>완료</b></div>
-                <div className="mini-process active">STT 처리 <b>65%</b></div>
-                <div className="mini-process">AI 구조화 <b>대기</b></div>
-                <div className="mini-process">회의록 초안 생성 <b>대기</b></div>
-                <div className="mini-stepper">{pipelineSteps.map((step, index) => <span className={step.state} key={step.label}>{index + 1}</span>)}</div>
-                <div className="mini-actions"><button type="button">프로젝트 홈</button><button type="button">상세 보기</button></div>
-              </div>
-            </div>
-          </article>
-
-          <article className="mf-panel mf-span-12 admin-showcase">
-            <PanelHeader title="운영 관리자 대시보드" action="ADMIN-01" />
-            <div className="admin-metric-strip">
-              <div><span>회사 규모</span><strong>{DEMO_COMPANY_HEADCOUNT}명</strong><small>개발 {DEMO_COMPANY_DEVELOPER_COUNT}명</small></div>
-              <div><span>연매출</span><strong>{DEMO_COMPANY_REVENUE_LABEL}</strong><small>SW 개발회사</small></div>
-              <div><span>본부 구성</span><strong>{DEMO_COMPANY_DIVISION_COUNT}개</strong><small>{DEMO_COMPANY_DIVISIONS.join(" · ")}</small></div>
-              <div><span>전체 프로젝트 수</span><strong>{dashboard?.projects ?? DEMO_COMPANY_PROJECT_COUNT}</strong><small>새싹SW 기준 15건</small></div>
-              <div><span>분석 대기 작업</span><strong>{operationQueue?.email_distributions.retry_due ?? 0}</strong><small>회의 자동화 모듈</small></div>
-              <div><span>배포 실패</span><strong className="danger">{dashboard?.distribution_failures ?? 0}</strong><small>프로젝트 구성원 자동 배포</small></div>
-            </div>
-            <div className="admin-grid">
-              <div className="admin-donut"><strong>{DEMO_COMPANY_PROJECT_COUNT}</strong><span>새싹SW 프로젝트</span></div>
-              <div className="worker-list">
-                {["worker-01", "worker-02", "worker-03", "worker-04", "worker-05"].map((worker, index) => (
-                  <div key={worker}><span>{worker}</span><i style={{ width: `${index === 4 ? 8 : 88 - index * 8}%` }} /><b>{index === 4 ? "오류" : "실행 중"}</b></div>
-                ))}
-              </div>
-              <div className="admin-table">
-                {["텍스트 추출 실패", "S3 업로드 실패", "파서 오류", "이메일 전송 실패"].map((error, index) => (
-                  <div key={error}><span>10:{28 - index * 7}:14</span><b>{error}</b><small>{projectTitle}</small></div>
-                ))}
-              </div>
             </div>
           </article>
         </section>
