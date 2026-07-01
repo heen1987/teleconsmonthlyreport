@@ -91,9 +91,36 @@ type ProjectDashboard = {
   distribution_failures: number;
   knowledge_items: number;
 };
+type Task = {
+  task_id: string;
+  project_id: string;
+  source_meeting_id?: string | null;
+  source_analysis_id?: string | null;
+  title: string;
+  description?: string | null;
+  assignee?: string | null;
+  due_date?: string | null;
+  priority: string;
+  status: string;
+  conversion_status: string;
+};
+type ResourceDemandItem = {
+  demand_id: string;
+  project_id: string;
+  name: string;
+  resource_type: string;
+  quantity?: number | null;
+  needed_from?: string | null;
+  needed_to?: string | null;
+  reason?: string | null;
+  demand_status: string;
+};
 type ProjectDetail = Project & {
   members: ProjectMember[];
   dashboard: ProjectDashboard;
+  tasks?: Task[];
+  resource_demands?: ResourceDemandItem[];
+  knowledge_items?: ProjectKnowledgeItem[];
 };
 type MeetingStatusItem = {
   meeting_id: string;
@@ -213,7 +240,7 @@ type MeetingAnalysisResult = {
   requires_human_approval: boolean;
 };
 type ReviewPackage = {
-  meeting: { meeting_id: string; project_id: string; title: string; status: string };
+  meeting: { meeting_id: string; project_id: string; title: string; status: string; created_by?: string | null; audio_path?: string | null; transcript?: string | null };
   analysis_id: string;
   analysis_status: string;
   model_name: string;
@@ -2176,7 +2203,7 @@ function KanbanBoardConsole(props: {
 
   const getTasksByStatus = (status: string) => {
     if (status === "todo") {
-      return tasks.filter(t => t.status === "created" || t.status === "todo" || !t.status);
+      return tasks.filter(t => t.status === "draft" || t.status === "created" || t.status === "todo" || !t.status);
     }
     return tasks.filter(t => t.status === status);
   };
@@ -2204,11 +2231,11 @@ function KanbanBoardConsole(props: {
                 {colTasks.map((t) => (
                   <div key={t.task_id} style={{ background: "#ffffff", padding: "14px", borderRadius: "8px", boxShadow: "0 2px 6px rgba(0,0,0,0.03)", border: "1px solid var(--line)" }}>
                     <span style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>{t.task_id}</span>
-                    <strong style={{ fontSize: "14px", display: "block", marginBottom: "6px", color: "var(--ink)" }}>{t.name}</strong>
+                    <strong style={{ fontSize: "14px", display: "block", marginBottom: "6px", color: "var(--ink)" }}>{t.title}</strong>
                     <p style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "10px" }}>{t.description}</p>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px" }}>
-                      <span style={{ fontWeight: "700" }}>👤 {t.assignee_name}</span>
-                      <span style={{ color: "var(--rose)", fontSize: "11px", fontWeight: "bold" }}>📅 {t.due_date}</span>
+                      <span style={{ fontWeight: "700" }}>👤 {t.assignee ?? "미배정"}</span>
+                      <span style={{ color: "var(--rose)", fontSize: "11px", fontWeight: "bold" }}>📅 {t.due_date ?? "—"}</span>
                     </div>
                   </div>
                 ))}

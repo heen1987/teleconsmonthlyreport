@@ -65,6 +65,7 @@ class KtorAiPmsApiClient(
 
     override suspend fun createUploadSession(payload: UploadSessionCreate): UploadSessionOut =
         httpClient.post("${collectionBaseUrl.trimEnd('/')}/upload-sessions") {
+            bearerAuthIfAvailable()
             contentType(ContentType.Application.Json)
             setBody(payload)
         }.body()
@@ -88,24 +89,29 @@ class KtorAiPmsApiClient(
                 )
             }
         ) {
+            bearerAuthIfAvailable()
             header("X-Upload-Token", uploadToken)
         }.body()
     }
 
     override suspend fun registerAudioAsset(payload: AudioAssetCreate): AudioAssetOut =
         httpClient.post("${collectionBaseUrl.trimEnd('/')}/audio-assets") {
+            bearerAuthIfAvailable()
             contentType(ContentType.Application.Json)
             setBody(payload)
         }.body()
 
     override suspend fun createAnalysisJob(payload: AnalysisJobCreate): AnalysisJobOut =
         httpClient.post("${collectionBaseUrl.trimEnd('/')}/analysis-jobs") {
+            bearerAuthIfAvailable()
             contentType(ContentType.Application.Json)
             setBody(payload)
         }.body()
 
     override suspend fun getAnalysisJob(jobId: String): AnalysisJobOut =
-        httpClient.get("${collectionBaseUrl.trimEnd('/')}/analysis-jobs/$jobId").body()
+        httpClient.get("${collectionBaseUrl.trimEnd('/')}/analysis-jobs/$jobId") {
+            bearerAuthIfAvailable()
+        }.body()
 
     private fun io.ktor.client.request.HttpRequestBuilder.bearerAuthIfAvailable() {
         accessTokenProvider()?.takeIf { it.isNotBlank() }?.let { token ->
