@@ -1,0 +1,38 @@
+name: Deploy Collection/Analysis to Mac mini
+
+on:
+  push:
+    branches:
+      - user/heeseop
+      - main
+    paths:
+      - "collection_api/**"
+      - "contracts/**"
+      - "models/**"
+      - "scripts/**"
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - ".github/workflows/deploy-mac-mini.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: mac-mini-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 30
+    env:
+      AIPMS_DEPLOY_ROOT: ${{ vars.AIPMS_DEPLOY_ROOT }}
+      AIPMS_DEPLOY_PROFILE: collection-analysis
+      AIPMS_PLATFORM_API_URL: ${{ vars.AIPMS_PLATFORM_API_URL || vars.AIPMS_PLATFORM_URL || '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Preflight
+        run: bash scripts/deploy_mac_mini_from_runner.sh --check
+
+      - name: Deploy services
+        run: bash scripts/deploy_mac_mini_from_runner.sh --deploy

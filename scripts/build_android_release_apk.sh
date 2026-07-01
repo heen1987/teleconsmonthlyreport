@@ -29,8 +29,58 @@ require_env AIPMS_RELEASE_STORE_PASSWORD
 require_env AIPMS_RELEASE_KEY_ALIAS
 require_env AIPMS_RELEASE_KEY_PASSWORD
 
-PLATFORM_URL="${AIPMS_PLATFORM_BASE_URL:-${AIPMS_PUBLIC_PLATFORM_URL:-$(extract_url platform)}}"
-COLLECTION_URL="${AIPMS_COLLECTION_BASE_URL:-${AIPMS_PUBLIC_COLLECTION_URL:-$(extract_url collection)}}"
+PLATFORM_URL="${AIPMS_PLATFORM_BASE_URL:-${AIPMS_PUBLIC_PLATFORM_URL:-${AIPMS_PLATFORM_API_URL:-}}}"
+COLLECTION_URL="${AIPMS_COLLECTION_BASE_URL:-${AIPMS_PUBLIC_COLLECTION_URL:-}}"
+if [ -z "$COLLECTION_URL" ]; then
+  COLLECTION_URL="$(extract_url collection || true)"
+fi
+
+require_platform_server_url() {
+  if [ -z "$PLATFORM_URL" ]; then
+    cat >&2 <<'EOF'
+Platform server URL is required for release Android builds.
+
+Set one of:
+  AIPMS_PLATFORM_BASE_URL=https://<platform-server-url>
+  AIPMS_PUBLIC_PLATFORM_URL=https://<platform-server-url>
+  AIPMS_PLATFORM_API_URL=https://<platform-server-url>
+
+Do not build the release APK against a LAN IP or this PC.
+EOF
+    exit 2
+  fi
+
+  case "$PLATFORM_URL" in
+    http://127.*|https://127.*|http://localhost*|https://localhost*|\
+    http://10.*|https://10.*|http://192.168.*|https://192.168.*|\
+    http://172.1[6-9].*|https://172.1[6-9].*|http://172.2[0-9].*|https://172.2[0-9].*|\
+    http://172.3[0-1].*|https://172.3[0-1].*)
+      cat >&2 <<EOF
+Platform URL must point to the Platform server, not a local/LAN IP:
+  current: $PLATFORM_URL
+EOF
+      exit 2
+      ;;
+  esac
+}
+
+require_collection_url() {
+  if [ -z "$COLLECTION_URL" ]; then
+    cat >&2 <<'EOF'
+Collection public URL is required for release Android builds.
+
+Start the Mac mini Collection/Analysis tunnel first:
+  bash scripts/run_collection_analysis_public_tunnel.sh
+
+Or set:
+  AIPMS_PUBLIC_COLLECTION_URL=https://<collection-public-url>
+EOF
+    exit 2
+  fi
+}
+
+require_platform_server_url
+require_collection_url
 
 if [ ! -f "$AIPMS_RELEASE_STORE_FILE" ]; then
   echo "Release keystore file does not exist: $AIPMS_RELEASE_STORE_FILE" >&2

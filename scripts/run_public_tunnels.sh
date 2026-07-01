@@ -12,6 +12,7 @@ WEB_ALLOW_PUBLIC_BIND="${AIPMS_WEB_ALLOW_PUBLIC_BIND:-0}"
 WEB_CACHE_DIR="${AIPMS_WEB_NODE_MODULES_CACHE:-$HOME/.cache/ai-pms/web_client}"
 WEB_NODE_MODULES_DIR="$WEB_CACHE_DIR/node_modules"
 WEB_PUBLIC_RUNTIME_DIR="${AIPMS_WEB_PUBLIC_RUNTIME_DIR:-/tmp/ai_pms_web_public_runtime}"
+PLATFORM_URL="${AIPMS_PUBLIC_PLATFORM_URL:-${AIPMS_PLATFORM_API_URL:-${AIPMS_PLATFORM_URL:-}}}"
 
 mkdir -p "$TUNNEL_DIR"
 
@@ -49,6 +50,30 @@ ensure_local_service() {
     echo "$label is not healthy on 127.0.0.1:$port. Start the base service first." >&2
     exit 1
   fi
+}
+
+require_platform_server_url() {
+  if [ -z "$PLATFORM_URL" ]; then
+    cat >&2 <<'EOF'
+AIPMS_PLATFORM_URL or AIPMS_PLATFORM_API_URL is required.
+
+This script no longer exposes a local Platform API tunnel. Public Web and
+Android builds must point to the Platform server URL.
+EOF
+    exit 2
+  fi
+
+  case "$PLATFORM_URL" in
+    http://127.*|https://127.*|http://localhost*|https://localhost*|\
+    http://10.*|https://10.*|http://192.168.*|https://192.168.*|\
+    http://172.1[6-9].*|https://172.1[6-9].*|http://172.2[0-9].*|https://172.2[0-9].*|\
+    http://172.3[0-1].*|https://172.3[0-1].*)
+      echo "Platform URL must point to the Platform server, not a local/LAN IP: $PLATFORM_URL" >&2
+      exit 2
+      ;;
+  esac
+
+  PLATFORM_URL="${PLATFORM_URL%/}"
 }
 
 start_tunnel() {
@@ -142,6 +167,7 @@ prepare_public_web_runtime() {
   ln -s "$WEB_NODE_MODULES_DIR" "$WEB_PUBLIC_RUNTIME_DIR/node_modules"
 }
 
+require_platform_server_url
 require_command cloudflared
 require_command screen
 
@@ -163,22 +189,17 @@ EOF
     ;;
 esac
 
-ensure_local_service "Platform API" 8000
 ensure_local_service "Collection API" 8200
-ensure_local_service "Analysis server" 8100
 
-start_tunnel platform 8000 /health
 start_tunnel collection 8200 /health
-start_tunnel analysis 8100 /health
 
-platform_url="$(wait_for_url platform)"
 collection_url="$(wait_for_url collection)"
-analysis_url="$(wait_for_url analysis)"
+analysis_url="$collection_url"
 
 if [ "$RESTART_WEB_FOR_PUBLIC" = "1" ]; then
   stop_screen_sessions "aipms-web"
   prepare_public_web_runtime
-  screen -dmS aipms-web zsh -lc "cd '$WEB_PUBLIC_RUNTIME_DIR' && VITE_API_BASE='$platform_url' exec node '$WEB_NODE_MODULES_DIR/vite/bin/vite.js' --host '$WEB_BIND_HOST' --port '$WEB_PORT' --cors"
+  screen -dmS aipms-web zsh -lc "cd '$WEB_PUBLIC_RUNTIME_DIR' && VITE_API_BASE='$PLATFORM_URL' exec node '$WEB_NODE_MODULES_DIR/vite/bin/vite.js' --host '$WEB_BIND_HOST' --port '$WEB_PORT' --cors"
   wait_for_web
 fi
 
@@ -192,14 +213,14 @@ Web:
   $web_url
 
 Platform API:
-  $platform_url/docs
+  $PLATFORM_URL/docs
 
 Collection API:
   $collection_url/docs
 
-Analysis server:
+Integrated analysis worker:
   $analysis_url/docs
 
 Build public Android APK:
-  AIPMS_PUBLIC_PLATFORM_URL=$platform_url AIPMS_PUBLIC_COLLECTION_URL=$collection_url bash scripts/build_android_public_debug.sh
+  AIPMS_PLATFORM_API_URL=$PLATFORM_URL AIPMS_PUBLIC_COLLECTION_URL=$collection_url bash scripts/build_android_public_debug.sh
 EOF

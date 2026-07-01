@@ -1,0 +1,32 @@
+{
+  "artifact_id": "canva-screen-design-fixed",
+  "generated_date": "2026-06-30",
+  "brand": "MEETFLOW",
+  "status": "fixed_local_pptx_due_canva_quota_exceeded",
+  "final_pptx": "/Users/ppp/Library/CloudStorage/GoogleDrive-heen1987@gmail.com/내 드라이브/새싹교육_프로젝트/새싹교육_프로젝트 1/ai_pms_bootstrap/outputs/AI-PMS_MEETFLOW_screen_design_fixed.pptx",
+  "manifest": "/Users/ppp/Library/CloudStorage/GoogleDrive-heen1987@gmail.com/내 드라이브/새싹교육_프로젝트/새싹교육_프로젝트 1/ai_pms_bootstrap/outputs/AI-PMS_MEETFLOW_screen_design_fixed_manifest.json",
+  "preview_dir": "/Users/ppp/Library/CloudStorage/GoogleDrive-heen1987@gmail.com/내 드라이브/새싹교육_프로젝트/새싹교육_프로젝트 1/ai_pms_bootstrap/outputs/screen_design_fixed_preview",
+  "source_screen_design_dir": "/Users/ppp/Library/CloudStorage/GoogleDrive-heen1987@gmail.com/내 드라이브/새싹교육_프로젝트/새싹교육_프로젝트 1/1. 화면설계서",
+  "fixed_rules": [
+    "app_recording_first",
+    "project_only_no_attendee_selection",
+    "automatic_distribution_to_project_members",
+    "web_review_approval_distribution_pms_reflection",
+    "ai_no_speaker_or_owner_inference",
+    "meetflow_navy_teal_white_tone"
+  ],
+  "slides": [
+    { "slide": 1, "screen_id": "COVER", "title": "앱·웹 화면설계 고정 산출물" },
+    { "slide": 2, "screen_id": "SCOPE", "title": "MVP 화면 범위" },
+    { "slide": 3, "screen_id": "APP FLOW", "title": "앱 4단계 구조" },
+    { "slide": 4, "screen_id": "APP-01", "title": "로그인·홈" },
+    { "slide": 5, "screen_id": "APP-02", "title": "프로젝트 선택" },
+    { "slide": 6, "screen_id": "APP-04", "title": "회의 녹음" },
+    { "slide": 7, "screen_id": "APP-05", "title": "업로드·분석 상태" },
+    { "slide": 8, "screen_id": "WEB-01", "title": "프로젝트 워크스페이스" },
+    { "slide": 9, "screen_id": "WEB-02", "title": "업무보드" },
+    { "slide": 10, "screen_id": "WEB-03", "title": "문서공간·회의록 검토" },
+    { "slide": 11, "screen_id": "ADMIN-01", "title": "운영 관리자 대시보드" },
+    { "slide": 12, "screen_id": "CHECK", "title": "구현 반영 상태" }
+  ]
+}

@@ -22,20 +22,28 @@ require_url() {
   local label="$1"
   local value="$2"
   if [ -z "$value" ]; then
-    echo "Missing public $label URL. Run scripts/run_public_tunnels.sh first." >&2
+    echo "Missing public $label URL." >&2
     exit 1
   fi
 }
 
 WEB_URL="${AIPMS_PUBLIC_WEB_URL:-$(extract_url web || true)}"
-PLATFORM_URL="${AIPMS_PUBLIC_PLATFORM_URL:-$(extract_url platform || true)}"
+PLATFORM_URL="${AIPMS_PUBLIC_PLATFORM_URL:-${AIPMS_PLATFORM_API_URL:-${AIPMS_PLATFORM_URL:-}}}"
 COLLECTION_URL="${AIPMS_PUBLIC_COLLECTION_URL:-$(extract_url collection || true)}"
-ANALYSIS_URL="${AIPMS_PUBLIC_ANALYSIS_URL:-$(extract_url analysis || true)}"
+ANALYSIS_URL="${AIPMS_PUBLIC_ANALYSIS_URL:-$COLLECTION_URL}"
 
 require_url "Web" "$WEB_URL"
 require_url "Platform" "$PLATFORM_URL"
 require_url "Collection" "$COLLECTION_URL"
-require_url "Analysis" "$ANALYSIS_URL"
+case "$PLATFORM_URL" in
+  http://127.*|https://127.*|http://localhost*|https://localhost*|\
+  http://10.*|https://10.*|http://192.168.*|https://192.168.*|\
+  http://172.1[6-9].*|https://172.1[6-9].*|http://172.2[0-9].*|https://172.2[0-9].*|\
+  http://172.3[0-1].*|https://172.3[0-1].*)
+    echo "Platform URL must be the Platform server URL, not a local/LAN IP: $PLATFORM_URL" >&2
+    exit 2
+    ;;
+esac
 
 if [ ! -f "$APK_METADATA_PATH" ]; then
   echo "APK metadata not found: $APK_METADATA_PATH" >&2

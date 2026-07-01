@@ -17,11 +17,24 @@ print_service() {
   local label="$1"
   local service="$2"
   local suffix="${3:-}"
-  local url
-  if url="$(extract_url "$service")" && [ -n "$url" ]; then
+  local url="${4:-}"
+  if [ -z "$url" ]; then
+    url="$(extract_url "$service" || true)"
+  fi
+  if [ -n "$url" ]; then
     printf "%s:\n  %s%s\n" "$label" "$url" "$suffix"
   else
     printf "%s:\n  not running; check %s/%s.log\n" "$label" "$TUNNEL_DIR" "$service"
+  fi
+}
+
+print_platform_server() {
+  local url="${AIPMS_PUBLIC_PLATFORM_URL:-${AIPMS_PLATFORM_API_URL:-${AIPMS_PLATFORM_URL:-}}}"
+  if [ -n "$url" ]; then
+    printf "Platform API health:\n  %s/health\n" "${url%/}"
+    printf "Platform API docs:\n  %s/docs\n" "${url%/}"
+  else
+    printf "Platform API:\n  not configured; set AIPMS_PLATFORM_URL or AIPMS_PLATFORM_API_URL to the Platform server URL\n"
   fi
 }
 
@@ -29,10 +42,9 @@ cat <<EOF
 AI-PMS public tunnel URLs
 
 EOF
-print_service "Web client" "web" ""
-print_service "Platform API health" "platform" "/health"
-print_service "Platform API docs" "platform" "/docs"
-print_service "Collection API health" "collection" "/health"
-print_service "Collection API docs" "collection" "/docs"
-print_service "Analysis server health" "analysis" "/health"
-print_service "Analysis server docs" "analysis" "/docs"
+print_service "Web client" "web" "" "${AIPMS_PUBLIC_WEB_URL:-${AIPMS_GITHUB_PAGES_URL:-}}"
+print_platform_server
+print_service "Collection API health" "collection" "/health" "${AIPMS_PUBLIC_COLLECTION_URL:-}"
+print_service "Collection API docs" "collection" "/docs" "${AIPMS_PUBLIC_COLLECTION_URL:-}"
+print_service "Integrated analysis worker health" "collection" "/health" "${AIPMS_PUBLIC_COLLECTION_URL:-}"
+print_service "Integrated analysis worker docs" "collection" "/docs" "${AIPMS_PUBLIC_COLLECTION_URL:-}"

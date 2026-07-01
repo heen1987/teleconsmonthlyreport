@@ -21,7 +21,8 @@ graph TD
     Android_App["Android App<br/>APK / BuildConfig"] -->|Download APK| GH_Pages
 
     Web_Client -->|API Requests| Public_API["Public Platform API URL"]
-    Android_App -->|API / Audio Upload| Public_Collection["Public Collection API URL"]
+    Android_App -->|Login / Projects / PMS API| Public_API
+    Android_App -->|Audio Upload| Public_Collection["Public Collection API URL"]
 
     Public_API --> Platform_API["Platform API<br/>Port 8000"]
     Public_Collection --> Collection_API["Collection + Analysis<br/>Port 8200"]
@@ -99,9 +100,9 @@ a PC/Mac mini LAN IP for Platform.
 
 | Config Variable | Target Component | Public Target | Local/LAN Dev Target | Source File / Location |
 | :--- | :--- | :--- | :--- | :--- |
-| `VITE_API_BASE` | Web Client | `<platform-api-public-url>` | `http://<LAN_IP>:8000` | `web_client/src/api/client.ts` |
-| `aipmsPlatformBaseUrl` | Android App | `<platform-api-public-url>` | `http://<LAN_IP>:8000` | `android_client/gradle.properties` |
-| `aipmsCollectionBaseUrl` | Android App | `<collection-api-public-url>` | `http://<LAN_IP>:8200` | `android_client/gradle.properties` |
+| `VITE_API_BASE` | Web Client | `<platform-api-public-url>` | local dev only | GitHub variable `AIPMS_PLATFORM_URL` |
+| `aipmsPlatformBaseUrl` | Android App | `<platform-api-public-url>` | emulator/dev only | build-time Gradle property/env |
+| `aipmsCollectionBaseUrl` | Android App | `<collection-api-public-url>` | emulator/dev only | build-time Gradle property/env |
 | `PLATFORM_API_URL` | Collection callback | `<platform-api-public-url>` | `http://<LAN_IP>:8000` | `collection_api/.env` |
 | `apk_url` | App Update | `<github-pages-url>/downloads/AI-PMS-Recorder.apk` | `http://<LAN_IP>:3000/...` | `backend/app/main.py` |
 | `AIPMS_PLATFORM_URL` | GitHub Pages workflow | `<platform-api-public-url>` | N/A | GitHub repository variables |

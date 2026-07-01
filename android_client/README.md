@@ -64,15 +64,14 @@ Local emulator defaults:
 - Platform API: `http://10.0.2.2:8000`
 - Collection API: `http://10.0.2.2:8200`
 
-`10.0.2.2` routes from the Android emulator to the host Mac. On a physical
-device, use the Mac mini LAN IP and make sure the backend ports are reachable.
-The debug build can inject physical-device LAN defaults through Gradle
-properties:
+`10.0.2.2` routes from the Android emulator to the host Mac for local-only
+development. For physical-device tester builds, use the Platform server public
+URL and the active Collection public URL instead of a PC or Mac mini LAN IP:
 
 ```bash
 ./gradlew assembleDebug \
-  -PaipmsPlatformBaseUrl=http://192.168.219.102:8000 \
-  -PaipmsCollectionBaseUrl=http://192.168.219.102:8200
+  -PaipmsPlatformBaseUrl=https://<platform-server-url> \
+  -PaipmsCollectionBaseUrl=https://<collection-public-url>
 ```
 
 Build:
@@ -88,7 +87,7 @@ From the repository root, the environment-safe command is:
 bash scripts/build_android_debug.sh
 ```
 
-Physical-device LAN build:
+Same-Wi-Fi LAN build is kept only for local debugging:
 
 ```bash
 bash scripts/smoke_lan_access.sh

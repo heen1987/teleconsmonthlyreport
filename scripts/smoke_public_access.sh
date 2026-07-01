@@ -14,12 +14,12 @@ Usage:
 URL resolution order:
   1. positional argument
   2. AIPMS_PUBLIC_*_URL environment variable
-  3. latest runtime/tunnels/<service>.log quick-tunnel URL
+  3. latest runtime/tunnels/<service>.log quick-tunnel URL, except Platform
 
 Examples:
   bash scripts/smoke_public_access.sh
   bash scripts/smoke_public_access.sh https://web.example.com https://api.example.com https://collection.example.com https://analysis.example.com
-  AIPMS_PUBLIC_WEB_URL=https://web.example.com bash scripts/smoke_public_access.sh
+  AIPMS_PUBLIC_WEB_URL=https://web.example.com AIPMS_PLATFORM_API_URL=https://platform.example.com bash scripts/smoke_public_access.sh
 EOF
 }
 
@@ -70,10 +70,33 @@ resolve_url() {
   printf "%s" "$url"
 }
 
+resolve_platform_url() {
+  local positional="$1"
+  local env_value="$2"
+  local url="$positional"
+  if [ -z "$url" ]; then
+    url="$env_value"
+  fi
+  url="${url%/}"
+  if [ -z "$url" ]; then
+    fail "Missing public URL for Platform. Set AIPMS_PLATFORM_URL or AIPMS_PLATFORM_API_URL to the Platform server URL."
+  fi
+  case "$url" in
+    http://127.*|https://127.*|http://localhost*|https://localhost*|\
+    http://10.*|https://10.*|http://192.168.*|https://192.168.*|\
+    http://172.1[6-9].*|https://172.1[6-9].*|http://172.2[0-9].*|https://172.2[0-9].*|\
+    http://172.3[0-1].*|https://172.3[0-1].*)
+      fail "Platform URL must point to the Platform server, not a local/LAN IP: $url"
+      ;;
+  esac
+  printf "%s" "$url"
+}
+
 WEB_URL="$(resolve_url web "${1:-}" "${AIPMS_PUBLIC_WEB_URL:-}")"
-PLATFORM_URL="$(resolve_url platform "${2:-}" "${AIPMS_PUBLIC_PLATFORM_URL:-}")"
+PLATFORM_URL="$(resolve_platform_url "${2:-}" "${AIPMS_PUBLIC_PLATFORM_URL:-${AIPMS_PLATFORM_API_URL:-${AIPMS_PLATFORM_URL:-}}}")"
 COLLECTION_URL="$(resolve_url collection "${3:-}" "${AIPMS_PUBLIC_COLLECTION_URL:-}")"
-ANALYSIS_URL="$(resolve_url analysis "${4:-}" "${AIPMS_PUBLIC_ANALYSIS_URL:-}")"
+ANALYSIS_URL="${4:-${AIPMS_PUBLIC_ANALYSIS_URL:-$COLLECTION_URL}}"
+ANALYSIS_URL="${ANALYSIS_URL%/}"
 APK_FILE_NAME="AiPmsAndroidClient-responsive-public-debug.apk"
 APK_ALIAS_NAME="AI-PMS-Recorder.apk"
 REQUIREMENTS_DOCX_NAME="AI-PMS-requirements-v0.2.docx"
